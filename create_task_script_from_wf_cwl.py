@@ -7,8 +7,10 @@ from pathlib import Path
 from sevenbridges import Api
 from helper_functions import helper_functions as hf
 
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
-@click.command(no_args_is_help=True)
+
+@click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @click.option(
     "-w",
     "--workflow_file",
@@ -37,7 +39,7 @@ def create_task_script(workflow_file, project, app):
     int_keywords = ["ram", "mem", "cpu", "core"]
     options = []
     my_inputs = []
-    opt_base = f"@click.option(\"--"
+    opt_base = f'@click.option("--'
     with open(workflow_file, "r") as stream:
         try:
             workflow = yaml.safe_load(stream)
@@ -47,31 +49,31 @@ def create_task_script(workflow_file, project, app):
                     int_inputs.append(input)
                 option = None
                 if isinstance(inputs[input], str):
-                    option = f"{opt_base}{input}\", help=\"{input}\")"
+                    option = f'{opt_base}{input}", help="{input}")'
                 elif isinstance(inputs[input], dict):
                     has_help = False
-                    option = f"{opt_base}{input}\""
+                    option = f'{opt_base}{input}"'
                     for key in inputs[input]:
                         if key == "type":
                             if inputs[input][key] == "File":
                                 file_inputs.append(input)
                         elif key == "doc":
-                            option += f", help=\"{inputs[input][key]}\""
+                            option += f', help="{inputs[input][key]}"'
                             has_help = True
                         elif key == "default":
-                            option += f", default=\"{inputs[input][key]}\""
+                            option += f', default="{inputs[input][key]}"'
                         elif key == "secondaryFiles":
                             continue
                         elif key == "sbg:suggestedValue":
                             if isinstance(inputs[input][key], str):
-                                option += f", default=\"{inputs[input][key]}\""
+                                option += f', default="{inputs[input][key]}"'
                             elif isinstance(inputs[input][key], dict):
-                                option += f", default=\"{inputs[input][key]["name"]}\""
+                                option += f', default="{inputs[input][key]["name"]}"'
                         else:
                             print(f"Unknown key in input {key}")
                             exit(1)
                     if not has_help:
-                        option += f", help=\"{input}\""
+                        option += f', help="{input}"'
                     option += ")"
                 else:
                     print("Unknown input type")
@@ -86,11 +88,17 @@ def create_task_script(workflow_file, project, app):
     app_inputs = my_inputs.copy()
 
     # add extra necessary stuff to inputs (profile, task ids output file, and override file):
-    options.append("@click.option(\"--profile\", help=\"Profile to use for api\", default=\"cavatica\")")
+    options.append(
+        '@click.option("--profile", help="Profile to use for api", default="cavatica")'
+    )
     my_inputs.append("profile")
-    options.append("@click.option(\"--task_file\", help=\"File to write task ids to\", default=\"task_ids.txt\")")
+    options.append(
+        '@click.option("--task_file", help="File to write task ids to", default="task_ids.txt")'
+    )
     my_inputs.append("task_file")
-    options.append("@click.option(\"--override_file\", help=\"File to override input options\", default=None)")
+    options.append(
+        '@click.option("--override_file", help="File to override input options", default=None)'
+    )
     my_inputs.append("override_file")
 
     # create input override file options
@@ -101,11 +109,12 @@ def create_task_script(workflow_file, project, app):
     """
 
     # print output script
-    
+
     # imports
     print("import click")
     print("from pathlib import Path")
     print("from helper_functions import helper_functions as hf\n")
+    print("CONTEXT_SETTINGS = dict(help_option_names=[\"-h\", \"--help\"]")
     print("@click.command(no_args_is_help=True)")
 
     # command line args
@@ -118,45 +127,44 @@ def create_task_script(workflow_file, project, app):
     print(f"):")
 
     # get project and app from input
-    print(f"\tproject = \"{project}\"")
-    print(f"\tapp = \"{app}\"")
+    print(f'\tproject = "{project}"')
+    print(f'\tapp = "{app}"')
 
     # get api from helper functions reading config file
     print("\tapi = hf.parse_config(profile)")
-    
+
     # set up calling api
     print("\ttask_ids = []")
 
     # read override file
     print("\n\tif override_file:")
-    print("\t\tprint(\"Skipping override file, for now!\")")
-    print("\t\twith open(override_file, \"r\") as f:")
+    print('\t\twith open(override_file, "r") as f:')
     print("\t\t\tline_num = 0")
     print("\t\t\toverrides = []")
     print("\t\t\tfor line in f:")
     print("\t\t\t\tif line_num == 0:")
-    print("\t\t\t\t\toverrides = line.strip().split(\"\\t\")")
+    print('\t\t\t\t\toverrides = line.strip().split("\\t")')
     print("\t\t\t\telse:")
-    print("\t\t\t\t\tline_vals = line.strip().split(\"\\t\")")
+    print('\t\t\t\t\tline_vals = line.strip().split("\\t")')
 
     # figure out overrides
     for inp in app_inputs:
-        print(f"\t\t\t\tif \"{inp}\" in overrides:")
-        print(f"\t\t\t\t\t{inp} = line_vals[overrides.index(\"{inp}\")]")
-    
+        print(f'\t\t\t\tif "{inp}" in overrides:')
+        print(f'\t\t\t\t\t{inp} = line_vals[overrides.index("{inp}")]')
+
     # write api call
     print("\t\t\t\tnew_task = api.tasks.create(")
-    print(f"\t\t\t\t\tname = \"{app_name}\",")
+    print(f'\t\t\t\t\tname = "{app_name}",')
     print(f"\t\t\t\t\tproject = {project},")
     print(f"\t\t\t\t\tapp = {app},")
     print("\t\t\t\t\tinputs = {")
     for inp in app_inputs:
         if inp in file_inputs:
-            print(f"\t\t\t\t\t\t\"{inp}\": hf.get_file_obj(api, project, {inp}),")
+            print(f'\t\t\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp}),')
         elif inp in int_inputs:
-            print(f"\t\t\t\t\t\t\"{inp}\": int({inp}),")
+            print(f'\t\t\t\t\t\t"{inp}": int({inp}),')
         else:
-            print(f"\t\t\t\t\t\t\"{inp}\": {inp},")
+            print(f'\t\t\t\t\t\t"{inp}": {inp},')
     print("\t\t\t\t\t}")
     print("\t\t\t\t)")
     print("\t\t\ttask_ids.append(new_task.id)")
@@ -164,29 +172,30 @@ def create_task_script(workflow_file, project, app):
     # function call
     print("\telse:")
     print(f"\t\tnew_task = api.tasks.create(")
-    print(f"\t\t\tname = \"{app_name}\",")
+    print(f'\t\t\tname = "{app_name}",')
     print(f"\t\t\tproject = {project},")
     print(f"\t\t\tapp = {app},")
     print("\t\t\tinputs = {")
     for inp in app_inputs:
         if inp in file_inputs:
-            print(f"\t\t\t\t\"{inp}\": hf.get_file_obj(api, project, {inp}),")
+            print(f'\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp}),')
         elif inp in int_inputs:
-            print(f"\t\t\t\t\"{inp}\": int({inp}),")
+            print(f'\t\t\t\t"{inp}": int({inp}),')
         else:
-            print(f"\t\t\t\t\"{inp}\": {inp},")
+            print(f'\t\t\t\t"{inp}": {inp},')
     print("\t\t\t},")
     print("\t\t)")
     print("\t\ttask_ids.append(new_task.id)")
 
     # write task ids to file
-    print("\n\twith open(task_file, \"w\") as f:")
+    print('\n\twith open(task_file, "w") as f:')
     print("\t\tfor task_id in task_ids:")
-    print("\t\t\tf.write(f\"{task_id}\\n\")")
+    print('\t\t\tf.write(f"{task_id}\\n")')
 
     # bottom of script
-    print("\nif __name__ == \"__main__\":")
+    print('\nif __name__ == "__main__":')
     print("\tcreate_task()")
+
 
 if __name__ == "__main__":
     create_task_script()

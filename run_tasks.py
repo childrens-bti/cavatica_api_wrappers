@@ -6,8 +6,10 @@ from pathlib import Path
 from sevenbridges import Api
 from helper_functions import helper_functions as hf
 
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
-@click.command(no_args_is_help=True)
+
+@click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @click.option("--task_file", help="File with task ids")
 @click.option("--task_id", help="Task id")
 @click.option(
