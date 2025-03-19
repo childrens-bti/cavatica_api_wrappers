@@ -17,17 +17,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
     type=click.Path(exists=True),
     help="Path to workflow file",
 )
-@click.option(
-    "-p",
-    "--project",
-    help="Project the app is in, first two '/'s after 'u/' in Cavatica url",
-)
-@click.option(
-    "-a",
-    "--app",
-    help="App name, appid field on Cavaita app page",
-)
-def create_task_script(workflow_file, project, app):
+def create_task_script(workflow_file):
     """
     Create a draft task launch script from a template and workflow cwl.
     """
@@ -100,6 +90,14 @@ def create_task_script(workflow_file, project, app):
         '@click.option("--override_file", help="File to override input options", default=None)'
     )
     my_inputs.append("override_file")
+    options.append(
+        "@click.option(\"--project\", help=\"Project the app is in, first two '/'s after 'u/' in Cavatica url\")"
+    )
+    my_inputs.append("project")
+    options.append(
+        '@click.option("--app", help="App name, appid field on Cavaita app page")'
+    )
+    my_inputs.append("app")
 
     # create input override file options
     """
@@ -114,7 +112,7 @@ def create_task_script(workflow_file, project, app):
     print("import click")
     print("from pathlib import Path")
     print("from helper_functions import helper_functions as hf\n")
-    print("CONTEXT_SETTINGS = dict(help_option_names=[\"-h\", \"--help\"]")
+    print('CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])')
     print("@click.command(no_args_is_help=True)")
 
     # command line args
@@ -125,10 +123,6 @@ def create_task_script(workflow_file, project, app):
     for inp in my_inputs:
         print(f"\t{inp},")
     print(f"):")
-
-    # get project and app from input
-    print(f'\tproject = "{project}"')
-    print(f'\tapp = "{app}"')
 
     # get api from helper functions reading config file
     print("\tapi = hf.parse_config(profile)")
@@ -155,8 +149,8 @@ def create_task_script(workflow_file, project, app):
     # write api call
     print("\t\t\t\tnew_task = api.tasks.create(")
     print(f'\t\t\t\t\tname = "{app_name}",')
-    print(f"\t\t\t\t\tproject = {project},")
-    print(f"\t\t\t\t\tapp = {app},")
+    print(f"\t\t\t\t\tproject=project,")
+    print(f"\t\t\t\t\tapp=app,")
     print("\t\t\t\t\tinputs = {")
     for inp in app_inputs:
         if inp in file_inputs:
@@ -173,8 +167,8 @@ def create_task_script(workflow_file, project, app):
     print("\telse:")
     print(f"\t\tnew_task = api.tasks.create(")
     print(f'\t\t\tname = "{app_name}",')
-    print(f"\t\t\tproject = {project},")
-    print(f"\t\t\tapp = {app},")
+    print(f"\t\t\tproject=project,")
+    print(f"\t\t\tapp=app,")
     print("\t\t\tinputs = {")
     for inp in app_inputs:
         if inp in file_inputs:
