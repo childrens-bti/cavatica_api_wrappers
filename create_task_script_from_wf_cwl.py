@@ -113,7 +113,7 @@ def create_task_script(workflow_file):
     print("from pathlib import Path")
     print("from helper_functions import helper_functions as hf\n")
     print('CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])')
-    print("@click.command(no_args_is_help=True)")
+    print("@click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)")
 
     # command line args
     print("\n".join(options))
@@ -143,30 +143,32 @@ def create_task_script(workflow_file):
 
     # figure out overrides
     for inp in app_inputs:
-        print(f'\t\t\t\tif "{inp}" in overrides:')
-        print(f'\t\t\t\t\t{inp} = line_vals[overrides.index("{inp}")]')
+        print(f'\t\t\t\t\tif "{inp}" in overrides:')
+        print(f'\t\t\t\t\t\t{inp} = line_vals[overrides.index("{inp}")]')
 
     # write api call
-    print("\t\t\t\tnew_task = api.tasks.create(")
-    print(f'\t\t\t\t\tname = "{app_name}",')
-    print(f"\t\t\t\t\tproject=project,")
-    print(f"\t\t\t\t\tapp=app,")
-    print("\t\t\t\t\tinputs = {")
+    print("\t\t\t\t\tnew_task = api.tasks.create(")
+    print(f'\t\t\t\t\t\tname="{app_name}",')
+    print(f"\t\t\t\t\t\tproject=project,")
+    print(f"\t\t\t\t\t\tapp=app,")
+    print("\t\t\t\t\t\tinputs = {")
     for inp in app_inputs:
         if inp in file_inputs:
-            print(f'\t\t\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp}),')
+            print(f'\t\t\t\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp}),')
         elif inp in int_inputs:
-            print(f'\t\t\t\t\t\t"{inp}": int({inp}),')
+            print(f'\t\t\t\t\t\t\t"{inp}": int({inp}),')
         else:
-            print(f'\t\t\t\t\t\t"{inp}": {inp},')
-    print("\t\t\t\t\t}")
-    print("\t\t\t\t)")
-    print("\t\t\ttask_ids.append(new_task.id)")
+            print(f'\t\t\t\t\t\t\t"{inp}": {inp},')
+    print("\t\t\t\t\t\t}")
+    print("\t\t\t\t\t)")
+    print("\t\t\t\t\tprint(new_task.name, new_task.status, new_task.id)")
+    print("\t\t\t\t\ttask_ids.append(new_task.id)")
+    print("\t\t\t\tline_num += 1")
 
     # function call
     print("\telse:")
     print(f"\t\tnew_task = api.tasks.create(")
-    print(f'\t\t\tname = "{app_name}",')
+    print(f'\t\t\tname="{app_name}",')
     print(f"\t\t\tproject=project,")
     print(f"\t\t\tapp=app,")
     print("\t\t\tinputs = {")
@@ -179,6 +181,7 @@ def create_task_script(workflow_file):
             print(f'\t\t\t\t"{inp}": {inp},')
     print("\t\t\t},")
     print("\t\t)")
+    print("\t\tprint(new_task.name, new_task.status, new_task.id)")
     print("\t\ttask_ids.append(new_task.id)")
 
     # write task ids to file
