@@ -26,6 +26,7 @@ def create_task_script(workflow_file):
     app_name = workflow_file.split("/")[-1].split(".")[0]
     file_inputs = []
     int_inputs = []
+    bool_inputs = []
     int_keywords = ["ram", "mem", "cpu", "core"]
     options = []
     my_inputs = []
@@ -45,8 +46,10 @@ def create_task_script(workflow_file):
                     option = f'{opt_base}{input}"'
                     for key in inputs[input]:
                         if key == "type":
-                            if inputs[input][key] == "File":
+                            if isinstance(inputs[input][key], str) and inputs[input][key].startswith("File"):
                                 file_inputs.append(input)
+                            elif isinstance(inputs[input][key], str) and  inputs[input][key].startswith("boolean"):
+                                bool_inputs.append(input)
                         elif key == "doc":
                             option += f', help="{inputs[input][key]}"'
                             has_help = True
@@ -157,6 +160,8 @@ def create_task_script(workflow_file):
             print(f'\t\t\t\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp}),')
         elif inp in int_inputs:
             print(f'\t\t\t\t\t\t\t"{inp}": int({inp}),')
+        elif inp in bool_inputs:
+            print(f'\t\t\t\t\t\t\t"{inp}": bool({inp}),')
         else:
             print(f'\t\t\t\t\t\t\t"{inp}": {inp},')
     print("\t\t\t\t\t\t}")
@@ -177,6 +182,8 @@ def create_task_script(workflow_file):
             print(f'\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp}),')
         elif inp in int_inputs:
             print(f'\t\t\t\t"{inp}": int({inp}),')
+        elif inp in bool_inputs:
+            print(f'\t\t\t\t"{inp}": bool({inp}), ')
         else:
             print(f'\t\t\t\t"{inp}": {inp},')
     print("\t\t\t},")
