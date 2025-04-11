@@ -13,7 +13,7 @@ def get_file_obj(api, project, file_name) -> str:
     - project: project name
     - file_name: file name to lookup
     Returns:
-    - file_id: file id for the file
+    - file_obj: api file object
     """
     print(f"Looking up file id for file: {file_name}")
     file_id = None
