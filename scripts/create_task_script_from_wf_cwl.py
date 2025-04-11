@@ -40,10 +40,10 @@ def create_task_script(workflow_file):
                     int_inputs.append(input)
                 option = None
                 if isinstance(inputs[input], str):
-                    option = f'{opt_base}{input}", help="{input}")'
+                    option = f'{opt_base}{input.lower()}", help="{input}")'
                 elif isinstance(inputs[input], dict):
                     has_help = False
-                    option = f'{opt_base}{input}"'
+                    option = f'{opt_base}{input.lower()}"'
                     for key in inputs[input]:
                         if key == "type":
                             if isinstance(inputs[input][key], str) and inputs[input][key].startswith("File"):
@@ -66,7 +66,7 @@ def create_task_script(workflow_file):
                             print(f"Unknown key in input {key}")
                             exit(1)
                     if not has_help:
-                        option += f', help="{input}"'
+                        option += f', help="{input.lower()}"'
                     option += ")"
                 else:
                     print("Unknown input type")
@@ -124,7 +124,7 @@ def create_task_script(workflow_file):
     # actual function and options
     print(f"def create_task(")
     for inp in my_inputs:
-        print(f"\t{inp},")
+        print(f"\t{inp.lower()},")
     print(f"):")
 
     # get api from helper functions reading config file
@@ -146,8 +146,8 @@ def create_task_script(workflow_file):
 
     # figure out overrides
     for inp in app_inputs:
-        print(f'\t\t\t\t\tif "{inp}" in overrides:')
-        print(f'\t\t\t\t\t\t{inp} = line_vals[overrides.index("{inp}")]')
+        print(f'\t\t\t\t\tif "{inp.lower()}" in overrides:')
+        print(f'\t\t\t\t\t\t{inp.lower()} = line_vals[overrides.index("{inp.lower()}")]')
 
     # write api call
     print("\t\t\t\t\tnew_task = api.tasks.create(")
@@ -157,13 +157,13 @@ def create_task_script(workflow_file):
     print("\t\t\t\t\t\tinputs = {")
     for inp in app_inputs:
         if inp in file_inputs:
-            print(f'\t\t\t\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp}),')
+            print(f'\t\t\t\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp.lower()}),')
         elif inp in int_inputs:
-            print(f'\t\t\t\t\t\t\t"{inp}": int({inp}),')
+            print(f'\t\t\t\t\t\t\t"{inp}": int({inp.lower()}),')
         elif inp in bool_inputs:
-            print(f'\t\t\t\t\t\t\t"{inp}": bool({inp}),')
+            print(f'\t\t\t\t\t\t\t"{inp}": bool({inp.lower()}),')
         else:
-            print(f'\t\t\t\t\t\t\t"{inp}": {inp},')
+            print(f'\t\t\t\t\t\t\t"{inp}": {inp.lower()},')
     print("\t\t\t\t\t\t}")
     print("\t\t\t\t\t)")
     print("\t\t\t\t\tprint(new_task.name, new_task.status, new_task.id)")
@@ -179,13 +179,13 @@ def create_task_script(workflow_file):
     print("\t\t\tinputs = {")
     for inp in app_inputs:
         if inp in file_inputs:
-            print(f'\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp}),')
+            print(f'\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp.lower()}),')
         elif inp in int_inputs:
-            print(f'\t\t\t\t"{inp}": int({inp}),')
+            print(f'\t\t\t\t"{inp}": int({inp.lower()}),')
         elif inp in bool_inputs:
-            print(f'\t\t\t\t"{inp}": bool({inp}), ')
+            print(f'\t\t\t\t"{inp}": bool({inp.lower()}), ')
         else:
-            print(f'\t\t\t\t"{inp}": {inp},')
+            print(f'\t\t\t\t"{inp}": {inp.lower()},')
     print("\t\t\t},")
     print("\t\t)")
     print("\t\tprint(new_task.name, new_task.status, new_task.id)")
