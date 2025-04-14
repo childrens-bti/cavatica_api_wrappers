@@ -15,7 +15,7 @@ def find_file_in_folder(folder, search_name, result_list=None):
     - folder: folder object
     - search_name: file name to search for
     Returns:
-    - file_obj: api file object
+    - result_list: list of all results from recursive query
     """
 
     if result_list is None:
@@ -25,7 +25,14 @@ def find_file_in_folder(folder, search_name, result_list=None):
         if file.name == search_name:
             result_list.append(file)
         elif file.is_folder() == True:
-            find_file_in_folder(file.list_files(), search_name, result_list)
+            # get all files in the folder using pagination
+            recieved = LIMIT
+            new_folder = file.list_files(limit=LIMIT)
+            find_file_in_folder(new_folder, search_name, result_list)
+            while recieved < new_folder.total:
+                find_file_in_folder(file.list_files(limit=LIMIT, offset=recieved), search_name, result_list)
+                recieved += LIMIT
+            
     return result_list
 
 
@@ -55,13 +62,13 @@ def get_file_obj(api, project, file_name) -> str:
         project_obj = api.projects.get(id=project)
 
         # query project for all files using pagination
-        recieved = 0
+        recieved = LIMIT
         project_files = project_obj.get_files(limit=LIMIT)
         found_files = find_file_in_folder(project_files, file_name)
         while recieved < project_files.total:
-            recieved += LIMIT
             project_files = project_obj.get_files(limit=LIMIT, offset=recieved)
             found_files.extend(find_file_in_folder(project_files, file_name))
+            recieved += LIMIT
 
         if len(found_files) == 0:
             print(f"ERROR: File {file_name} not found in project {project}")
