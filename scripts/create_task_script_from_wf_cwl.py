@@ -153,11 +153,11 @@ def create_task_script(workflow_file):
         if inp in file_inputs:
             print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = hf.get_file_obj(api, project, {inp.lower()})')
         elif inp in int_inputs:
-            print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = int({inp.lower()}),')
+            print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = int({inp.lower()})')
         elif inp in bool_inputs:
-            print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = bool({inp.lower()}),')
+            print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = bool({inp.lower()})')
         else:
-            print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = {inp.lower()},')
+            print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = {inp.lower()}')
 
     # write api call
     print("\t\t\t\t\tnew_task = api.tasks.create(")
@@ -181,11 +181,11 @@ def create_task_script(workflow_file):
         if inp in file_inputs:
             print(f'\t\t\tapp_inputs["{inp}"] = hf.get_file_obj(api, project, {inp.lower()})')
         elif inp in int_inputs:
-            print(f'\t\t\tapp_inputs["{inp}"] = int({inp.lower()}),')
+            print(f'\t\t\tapp_inputs["{inp}"] = int({inp.lower()})')
         elif inp in bool_inputs:
-            print(f'\t\t\tapp_inputs["{inp}"] = bool({inp.lower()}),')
+            print(f'\t\t\tapp_inputs["{inp}"] = bool({inp.lower()})')
         else:
-            print(f'\t\t\tapp_inputs["{inp}"] = {inp.lower()},')
+            print(f'\t\t\tapp_inputs["{inp}"] = {inp.lower()}')
     print(f"\t\tnew_task = api.tasks.create(")
     print(f'\t\t\tname="{app_name}",')
     print(f"\t\t\tproject=project,")
