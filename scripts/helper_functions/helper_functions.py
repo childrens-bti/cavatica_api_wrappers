@@ -4,6 +4,9 @@ import configparser
 from pathlib import Path
 from sevenbridges import Api
 
+# set api limit for pagination
+LIMIT = 50
+
 
 def find_file_in_folder(folder, search_name, result_list=None):
     """
@@ -51,8 +54,14 @@ def get_file_obj(api, project, file_name) -> str:
         # get all files in the project
         project_obj = api.projects.get(id=project)
 
-        project_files = project_obj.get_files()
+        # query project for all files using pagination
+        recieved = 0
+        project_files = project_obj.get_files(limit=LIMIT)
         found_files = find_file_in_folder(project_files, file_name)
+        while recieved < project_files.total:
+            recieved += LIMIT
+            project_files = project_obj.get_files(limit=LIMIT, offset=recieved)
+            found_files.extend(find_file_in_folder(project_files, file_name))
 
         if len(found_files) == 0:
             print(f"ERROR: File {file_name} not found in project {project}")
