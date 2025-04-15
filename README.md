@@ -12,8 +12,8 @@ This repository contains Python wrapper scripts using the [Seven Bridges Python 
 
 To use the scripts contained within this repo:
 1. Clone this repo locally
-1. Create config file (see below)
-1. Install required Python libraries
+2. Create config file (see below)
+3. Install required Python libraries
 ```python
 pip install -r requirements.txt
 ```
@@ -45,18 +45,18 @@ The `create_task_script_from_wf_cwl.py` script parses a CWL workflow and creates
 ### Generating a Task Creation Script
 
 1. Clone the repo with the input workflow
-1. Run the generation script
+2. Run the generation script
 ```bash
 $ python create_task_script_from_wf_cwl.py -w {workflow_path} > {generated_script}.py
 ```
-3. If the script will be added to a repo for later use, it is strongly recommended to format the script using (black)[https://github.com/psf/black].
+3. If the script will be added to a repo for later use, it is strongly recommended to format the script using [black](https://github.com/psf/black).
 
 ### Using the generated script to create draft task(s)
 
 1. Ensure the workflow and any input files exist within the project you will be running the workflow in.
-1. Copy the app id from the project -> apps -> workflow page.
-1. (Optional) create the override file.
-1. Run the generated script. If the workflow has default values, those will be used when creating the tasks.
+2. Copy the app id from the project -> apps -> workflow page.
+3. (Optional) create the override file.
+4. Run the generated script. If the workflow has default values, those will be used when creating the tasks.
 ```bash
 $ python {generated_script}.py --project {project} --app {appid} --task_file {task_file} {any additional workflow arguments and / or override file}
 ```
