@@ -40,7 +40,7 @@ The $HOME/.sevenbridges/credentials file has a simple .ini file format, for exam
 
 Warning: this is very experimental and should be manually veririfed before using!
 
-The `create_task_script_from_wf_cwl.py` script parses a CWL workflow and creates a python script that uses the Sevenbridges API to create draft draft tasks. The generated script will have command line arguments for each workflow input, the project the workflow is uploaded to, the workflow app id in the project, and an option for a "override file" which is described below. When the generated script is run, it will create draft tasks at the endpoint provided by your profile and will output a file containing the task ids of the created draft tasks. Neither the `create_task_script_from_wf_cwl.py` script nor the scripts that it generates will load the workflow to the project. That must be done separately.
+The `create_task_script_from_wf_cwl.py` script parses a CWL workflow and creates a python script that uses the Sevenbridges API to create draft tasks. The generated script will have command line arguments for each workflow input, the project the workflow is uploaded to, the workflow app id in the project, and an option for a "override file" which is described below. When the generated script is run, it will create draft tasks at the endpoint provided by your profile and will output a file containing the task ids of the created draft tasks. Neither the `create_task_script_from_wf_cwl.py` script nor the scripts that it generates will load the workflow to the project. That must be done separately.
 
 ### Generating a Task Creation Script
 
