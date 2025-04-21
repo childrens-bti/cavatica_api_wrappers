@@ -179,7 +179,7 @@ def create_task_script(workflow_file):
             elif inp in float_inputs:
                 print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = float({inp.lower()})')
             elif inp in bool_inputs:
-                print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = {inp.lower()}.lower()) == "true"')
+                print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = {inp.lower()}.lower() == "true"')
             else:
                 print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = {inp.lower()}')
 
@@ -225,7 +225,7 @@ def create_task_script(workflow_file):
             elif inp in float_inputs:
                 print(f'\t\t\tapp_inputs["{inp}"] = float({inp.lower()})')
             elif inp in bool_inputs:
-                print(f'\t\t\tapp_inputs["{inp}"] = {inp.lower()}.lower()) == "true"')
+                print(f'\t\t\tapp_inputs["{inp}"] = {inp.lower()}.lower() == "true"')
             else:
                 print(f'\t\t\tapp_inputs["{inp}"] = {inp.lower()}')
     print(f"\t\tnew_task = api.tasks.create(")
