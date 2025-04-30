@@ -56,24 +56,6 @@ The `create_task_from_wf_cwl.py` script parses a CWL workflow and a tsv file wit
 
 ### Script usage
 
-python scripts/create_task_from_wf_cwl.py -h
-Usage: create_task_from_wf_cwl.py [OPTIONS]
-
-  Create a draft task launch script from a template and workflow cwl.
-
-Options:
-  --profile TEXT            Profile to use from credentials file  [default:
-                            cavatica]
-  --project TEXT            Project the app is in, first two '/'s after 'u/'
-                            in Cavatica url
-  --app TEXT                App name, appid field on Cavaita app page
-  -w, --workflow_file PATH  Path to workflow file
-  --out TEXT                Output file
-  --skip_name_check         Skip checking if app name and workflow file name
-                            match
-  --options_file PATH       Path to options file
-  -h, --help                Show this message and exit.
-
 To get a full list of inputs, run:
 ```bash
 python scripts/create_task_from_wf_cwl.py -h
