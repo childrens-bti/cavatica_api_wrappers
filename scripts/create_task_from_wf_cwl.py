@@ -105,14 +105,13 @@ def create_task_script(
     # parse options file and create tasks
     task_ids = []
     with open(options_file, "r") as f:
+        exit()
         line_num = 0
         task_options = []
         for line in f: 
             if line_num == 0:
                 # parse header
-                print(line)
                 task_options = line.strip().split("\t")
-                print(task_options)
             else:
                 # create new task reading inputs and converting to expected type
                 task_inputs = {}
@@ -163,12 +162,13 @@ def create_task_script(
                     task_name = f"{task_name}_{task_inputs["output_basename"]}"
 
                 # call api and store task_id
-                # what about suggested values????
                 new_task = api.tasks.create(
                     name=task_name, project=project, app=app, inputs=task_inputs
                 )
                 print(f"{new_task.name}, {new_task.status}, {new_task.id}")
                 task_ids.append(new_task.id)
+                if len(f.readlines()) > 10:
+                    time.sleep(15)
 
             line_num += 1
 
