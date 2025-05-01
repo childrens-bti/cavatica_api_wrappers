@@ -105,10 +105,9 @@ def create_task_script(
     # parse options file and create tasks
     task_ids = []
     with open(options_file, "r") as f:
-        exit()
         line_num = 0
         task_options = []
-        for line in f: 
+        for line in f:
             if line_num == 0:
                 # parse header
                 task_options = line.strip().split("\t")
@@ -160,6 +159,8 @@ def create_task_script(
                 task_name = f"{web_app_name}_{today}"
                 if "output_basename" in task_inputs:
                     task_name = f"{task_name}_{task_inputs["output_basename"]}"
+                else:
+                    task_name = f"{task_name}_{line_num}"
 
                 # call api and store task_id
                 new_task = api.tasks.create(
@@ -167,7 +168,7 @@ def create_task_script(
                 )
                 print(f"{new_task.name}, {new_task.status}, {new_task.id}")
                 task_ids.append(new_task.id)
-                if len(f.readlines()) > 10:
+                if line_num > 10:
                     time.sleep(15)
 
             line_num += 1
