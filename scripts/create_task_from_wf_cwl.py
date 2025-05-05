@@ -25,12 +25,24 @@ def parse_workflow_file(workflow_file):
             for input in inputs:
                 # figure out input type
                 if isinstance(inputs[input], str):
-                    continue
+                    workflow_inputs[input] = "string"
                 elif isinstance(inputs[input], dict):
                     for key in inputs[input]:
                         if key == "type":
                             if isinstance(inputs[input][key], list):
                                 workflow_inputs[input] = "string"
+                            elif isinstance(inputs[input][key], dict):
+                                if inputs[input][key]["type"] == "File":
+                                    # this probably isn't needed nor and might not even be correct for enums...
+                                    workflow_inputs[input] = "file"
+                                elif inputs[input][key]["type"] == "boolean":
+                                    workflow_inputs[input] = "bool"
+                                elif inputs[input][key]["type"] == "int":
+                                    workflow_inputs[input] = "int"
+                                elif inputs[input][key]["type"] == "float":
+                                    workflow_inputs[input] = "float"
+                                else:
+                                    workflow_inputs[input] = "string"
                             else:
                                 if "[]" in inputs[input][key]:
                                     array_inputs.append(input)
@@ -117,7 +129,7 @@ def create_task_script(
                 line_split = line.strip().split("\t")
                 for option in task_options:
                     if option not in workflow_inputs:
-                        print(f"Option {option} not in workflow inputs")
+                        print(f"Option {option} not in workflow inputs: {workflow_inputs}")
                         exit(1)
                     else:
                         if option not in array_inputs:
@@ -168,8 +180,6 @@ def create_task_script(
                 )
                 print(f"{new_task.name}, {new_task.status}, {new_task.id}")
                 task_ids.append(new_task.id)
-                if line_num > 10:
-                    time.sleep(15)
 
             line_num += 1
 
