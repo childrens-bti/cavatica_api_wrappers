@@ -3,6 +3,7 @@
 import configparser
 from pathlib import Path
 from sevenbridges import Api
+from sevenbridges.http.error_handlers import rate_limit_sleeper, maintenance_sleeper
 
 # set api limit for pagination
 LIMIT = 50
@@ -100,6 +101,7 @@ def parse_config(profile):
     api = Api(
         url=config[profile]["api_endpoint"],
         token=config[profile]["auth_token"],
+        error_handlers=[rate_limit_sleeper, maintenance_sleeper]
     )
 
     return api
