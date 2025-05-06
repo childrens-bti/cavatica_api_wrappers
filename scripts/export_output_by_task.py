@@ -1,0 +1,112 @@
+"""Export files from a list of tasks to an AWS bucket."""
+
+import click
+import configparser
+from pathlib import Path
+from sevenbridges import Api
+from helper_functions import helper_functions as hf
+
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+
+
+def check_and_get_files(api, task_id):
+    """
+    Check that a task is COMPLETED and export data.
+    Inputs:
+    - api object
+    - task id
+
+    Returns:
+    - if the task is succesful: a list of output file ids
+    """
+    files = []
+    print(f"Current task id: {task_id}")
+    task = api.tasks.get(id=task_id)
+    if task.status == "COMPLETED":
+        # get list of files in output folder
+        for out_key in task.outputs.keys():
+            if type(task.outputs[out_key]) is list:
+                for file in task.outputs[out_key]:
+                    if type(file) is list:
+                        for f in file:
+                            files.append(f)
+                    else:
+                        files.append(file)
+            else:
+                files.append(task.outputs[out_key])
+
+    elif task.status == "DRAFT":
+        print(f"{task} is a draft task and has not run yet, skipping")
+    elif task.status == "RUNNING":
+        print(f"{task} is currently running, skipping")
+    elif task.status == "FAILED":
+        print(f"{task} has failed, skipping")
+    else:
+        print(f"{task} is in an unknown state: {task.status}")
+        print("Please check the task status and try again, skipping")
+
+    return files
+
+@click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
+@click.option("--task_file", help="File with task ids")
+@click.option("--task_id", help="Task id")
+@click.option("--volume", help="username/volume_name of volume to export to.", required=True)
+@click.option(
+    "--profile",
+    help="Profile to use from credentials file",
+    default="cavatica",
+    show_default=True,
+)
+@click.option(
+    "--location",
+    help="Bucket prefix to export data to (for example: volume/folder/sub-folder)",
+    default="harmonized",
+    show_default=True,
+    required=True,
+)
+@click.option("--run", help="Run the task", is_flag=True, default=False)
+def export_task_outputs(task_file, task_id, profile, volume, location, run):
+    """
+    Take a task or a list of tasks and export the output data
+    to an AWS bucket.
+    All files from all tasks will go to the same bucket/location.
+    """
+    # read config file
+    api = hf.parse_config(profile)
+    files_to_export = []
+    if task_file and task_id:
+        print("ERROR: Please provide either a task file or a task id")
+        exit(1)
+    elif task_id:
+        files_to_export = check_and_get_files(api, task_id)
+    elif task_file:
+        print(f"Getting tasks from file: {task_file}")
+        with open(task_file, "r") as f:
+            for line in f:
+                task_id = line.strip()
+                files_to_export.extend(check_and_get_files(api, task_id))
+    
+    if len(files_to_export) > 0:
+        print(f"Exporting {len(files_to_export)} files to {volume}/{location}")
+        if run:
+            print("Running export")
+            responses = hf.bulk_export_files(
+                api=api,
+                files=files_to_export,
+                volume=volume,
+                location=location,
+                copy_only=False,
+            )
+            for response in responses:
+                print(response)
+            print("Export complete")
+        else:
+            print("Dry run, not exporting")
+    else:
+        print("No files to export, exiting")
+        exit(0)
+
+
+
+if __name__ == "__main__":
+    export_task_outputs()

@@ -105,3 +105,76 @@ def parse_config(profile):
     )
 
     return api
+
+
+def bulk_export_files(api, files, volume, location, overwrite=True, copy_only=False):
+    """
+    Exports list of files to volume in bulk
+    """
+
+    chunk_size = 100  # Max legal bulk size for export is 100 items.
+    final_responses = []
+
+    def is_finished(response):
+        return response in ["COMPLETED", "FAILED", "ABORTED"]
+
+    def error_handling_after_completion(responses):
+        errors = [
+            s.resource.error.message for s in responses if s.resource.state == "FAILED"
+        ]
+        if errors:
+            data = [
+                s.resource.error if s.resource.state == "FAILED" else s.resource.result
+                for s in responses
+            ]
+            raise Exception(
+                "There were errors with bulk exporting.\n"
+                + "\n".join([str(d) for d in data])
+            )
+
+    def error_handling_after_submission(responses):
+        errors = [s.error.message for s in responses if not s.valid]
+        if errors:
+            data = [s for s in responses if not s.valid]
+
+            raise Exception(
+                "There were errors with bulk submission.\n"
+                + "\n".join(
+                    [
+                        f"<Error: status={s.error.status}, code={s.error.code}>; "
+                        f"{s.error.message}"
+                        for s in data
+                    ]
+                )
+            )
+
+    # export files in batches of 100 files each
+    for i in range(0, len(files), chunk_size):
+
+        # setup list of dictionary with export requests
+        exports = [
+            {
+                "file": f,
+                "volume": volume,
+                "location": location + "/" + f.name,
+                "overwrite": overwrite,
+            }
+            for f in files[i : i + chunk_size]
+        ]
+
+        # initiate bulk export of batch and wait until finished
+        responses = api.exports.bulk_submit(exports, copy_only=copy_only)
+
+        # check for errors in bulk submission
+        error_handling_after_submission(responses)
+
+        # wait for bulk job to finish
+        while not all(is_finished(s.resource.state) for s in responses):
+            responses = api.exports.bulk_get([s.resource for s in responses])
+
+        # check if each job finished successfully
+        error_handling_after_completion(responses)
+
+        final_responses.extend(responses)
+
+    return final_responses
