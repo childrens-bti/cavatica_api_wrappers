@@ -96,7 +96,7 @@ def create_task_script(
     profile, project, app, workflow_file, out, skip_name_check, options_file
 ):
     """
-    Create a draft task launch script from a template and workflow cwl.
+    Create a draft task from a workflow cwl and file with task options.
     """
 
     today = datetime.datetime.now().strftime("%Y%m%d")
