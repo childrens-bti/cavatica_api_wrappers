@@ -25,6 +25,8 @@ def parse_workflow_file(workflow_file):
             for input in inputs:
                 # figure out input type
                 if isinstance(inputs[input], str):
+                    if "[]" in inputs[input]:
+                        array_inputs.append(input)
                     workflow_inputs[input] = "string"
                 elif isinstance(inputs[input], dict):
                     for key in inputs[input]:
