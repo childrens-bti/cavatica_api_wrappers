@@ -29,11 +29,14 @@ def check_and_get_files(api, task_id):
                 for file in task.outputs[out_key]:
                     if type(file) is list:
                         for f in file:
-                            files.append(f)
+                            if f is not None:
+                                files.append(f)
                     else:
-                        files.append(file)
+                        if file is not None:
+                            files.append(file)
             else:
-                files.append(task.outputs[out_key])
+                if task.outputs[out_key] is not None:
+                    files.append(task.outputs[out_key])
 
     elif task.status == "DRAFT":
         print(f"{task} is a draft task and has not run yet, skipping")
@@ -47,10 +50,13 @@ def check_and_get_files(api, task_id):
 
     return files
 
+
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @click.option("--task_file", help="File with task ids")
 @click.option("--task_id", help="Task id")
-@click.option("--volume", help="username/volume_name of volume to export to.", required=True)
+@click.option(
+    "--volume", help="username/volume_name of volume to export to.", required=True
+)
 @click.option(
     "--profile",
     help="Profile to use from credentials file",
@@ -65,7 +71,8 @@ def check_and_get_files(api, task_id):
     required=True,
 )
 @click.option("--run", help="Run the task", is_flag=True, default=False)
-def export_task_outputs(task_file, task_id, profile, volume, location, run):
+@click.option("--debug", help="Print some debug messages", is_flag=True, default=False)
+def export_task_outputs(task_file, task_id, profile, volume, location, run, debug):
     """
     Take a task or a list of tasks and export the output data
     to an AWS bucket.
@@ -85,10 +92,18 @@ def export_task_outputs(task_file, task_id, profile, volume, location, run):
             for line in f:
                 task_id = line.strip()
                 files_to_export.extend(check_and_get_files(api, task_id))
-    
+
+                if debug:
+                    print(f"{len(files_to_export)} files to export")
+
+    if debug:
+        print(f"Preparing to export the following files:")
+        for file in files_to_export:
+            print(f"{file.name}: {file.id}")
+
     if len(files_to_export) > 0:
         print(f"Exporting {len(files_to_export)} files to {volume}/{location}")
-        if run:
+        if run and not debug:
             print("Running export")
             responses = hf.bulk_export_files(
                 api=api,
@@ -105,7 +120,6 @@ def export_task_outputs(task_file, task_id, profile, volume, location, run):
     else:
         print("No files to export, exiting")
         exit(0)
-
 
 
 if __name__ == "__main__":
