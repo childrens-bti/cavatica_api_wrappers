@@ -96,6 +96,15 @@ def export_task_outputs(task_file, task_id, profile, volume, location, run, debu
                 if debug:
                     print(f"{len(files_to_export)} files to export")
 
+    # loop through files and add any secondary files
+    for file in files_to_export:
+        if file.secondary_files is not None:
+            for secondary in file.secondary_files:
+                print(secondary.name)
+                # check if secondary already in list
+                if secondary not in files_to_export:
+                    files_to_export.append(secondary)
+
     if debug:
         print(f"Preparing to export the following files:")
         for file in files_to_export:
