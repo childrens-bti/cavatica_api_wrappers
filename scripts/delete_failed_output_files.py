@@ -63,6 +63,14 @@ def delete_failed_output_files(profile, project, abort, run):
 
         print(f"Found {len(files)} files")
 
+        for file in files:
+            # add any secondary files
+                if file.secondary_files is not None:
+                    for secondary in file.secondary_files:
+                        # check if secondary already in list
+                        if secondary not in files:
+                            files.append(secondary)
+
         if run:
             for file in files:
             # add any secondary files
