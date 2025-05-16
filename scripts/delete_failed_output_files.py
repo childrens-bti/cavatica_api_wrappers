@@ -65,9 +65,12 @@ def delete_failed_output_files(profile, project, abort, run):
 
         if run:
             for file in files:
-                # typically, index files aren't task outputs so:
-                # if the file is a bam or cram delete the bai / crai
-                # if the file is a vcf, delte the ...
+            # add any secondary files
+                if file.secondary_files is not None:
+                    for secondary in file.secondary_files:
+                        # check if secondary already in list
+                        if secondary not in files:
+                            files.append(secondary)
 
                 try:
                     file.delete()
