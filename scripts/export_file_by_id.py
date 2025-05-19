@@ -51,7 +51,6 @@ def export_file_ids(file_ids, profile, volume, location, run, debug):
     for file in files_to_export:
         if file.secondary_files is not None:
             for secondary in file.secondary_files:
-                print(secondary.name)
                 # check if secondary already in list
                 if secondary not in files_to_export:
                     files_to_export.append(secondary)

@@ -4,6 +4,7 @@ import click
 import configparser
 from pathlib import Path
 from sevenbridges import Api
+from sevenbridges.errors import NotFound
 from helper_functions import helper_functions as hf
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -96,11 +97,19 @@ def export_task_outputs(task_file, task_id, profile, volume, location, run, debu
                 if debug:
                     print(f"{len(files_to_export)} files to export")
 
-    # loop through files and add any secondary files
+    # loop through files and add any secondary files, and check that both files exist
     for file in files_to_export:
+        try:
+            file_obj = api.files.get(id=file)
+        except NotFound as e:
+            print(f"Can't export {file.name}, file doesn't exist")
+
         if file.secondary_files is not None:
             for secondary in file.secondary_files:
-                print(secondary.name)
+                try:
+                    file_obj = api.files.get(id=secondary)
+                except NotFound as e:
+                    print(f"Can't export {file.name}, file doesn't exist")
                 # check if secondary already in list
                 if secondary not in files_to_export:
                     files_to_export.append(secondary)
