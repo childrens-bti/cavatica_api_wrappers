@@ -61,7 +61,7 @@ To get a full list of inputs, run:
 python scripts/create_task_from_wf_cwl.py -h
 Usage: create_task_from_wf_cwl.py [OPTIONS]
 
-  Create a draft task launch script from a template and workflow cwl.
+  Create a draft task from a workflow cwl and file with task options.
 
 Options:
   --profile TEXT            Profile to use from credentials file  [default:
@@ -77,12 +77,12 @@ Options:
   -h, --help                Show this message and exit.
 ```
 
-#### The Input File
+#### The Options File
 
-The input file is a tsv file with column names corresponding to workflow inputs. If an input is found in the input file, the values in that column will be used when creating draft tasks and will override any default or suggested values for that input. For example, if a workflow has an input `reference_fasta`, the values listed in the `reference_fasta` column in the input file will be used and the default value in the workflow will not.
+The options file is a tsv file with column names corresponding to workflow inputs. If an input is found in the options file, the values in that column will be used when creating draft tasks and will override any default or suggested values for that input. For example, if a workflow has an input `reference_fasta`, the values listed in the `reference_fasta` column in the input file will be used and the default value in the workflow will not.
 
 
-Example override file
+Example options file
 ```bash
 $ cat override.txt
 vcf_file    output_basename

@@ -31,9 +31,13 @@ def find_file_in_folder(folder, search_name, result_list=None):
             new_folder = file.list_files(limit=LIMIT)
             find_file_in_folder(new_folder, search_name, result_list)
             while recieved < new_folder.total:
-                find_file_in_folder(file.list_files(limit=LIMIT, offset=recieved), search_name, result_list)
+                find_file_in_folder(
+                    file.list_files(limit=LIMIT, offset=recieved),
+                    search_name,
+                    result_list,
+                )
                 recieved += LIMIT
-            
+
     return result_list
 
 
@@ -72,8 +76,7 @@ def get_file_obj(api, project, file_name) -> str:
             recieved += LIMIT
 
         if len(found_files) == 0:
-            print(f"ERROR: File {file_name} not found in project {project}")
-            exit(1)
+            raise FileNotFoundError(f"ERROR: File {file_name} not found in project {project}")
         elif len(found_files) > 1:
             print(
                 f"ERROR: Multiple files found with name {file_name} in project {project}"
@@ -91,6 +94,22 @@ def get_file_obj(api, project, file_name) -> str:
     return file_obj
 
 
+def get_all_tasks(api, project):
+    """
+    Get all tasks in a project.
+    """
+    tasks = []
+    recieved = LIMIT
+    project_tasks = api.tasks.query(project=project, limit=LIMIT)
+    tasks.extend(project_tasks)
+    while recieved < project_tasks.total:
+        project_tasks = api.tasks.query(project=project, limit=LIMIT, offset = recieved)
+        tasks.extend(project_tasks)
+        recieved += LIMIT
+
+    return tasks
+
+
 def parse_config(profile):
     """
     Parse the config file and return the api object.
@@ -101,7 +120,7 @@ def parse_config(profile):
     api = Api(
         url=config[profile]["api_endpoint"],
         token=config[profile]["auth_token"],
-        error_handlers=[rate_limit_sleeper, maintenance_sleeper]
+        error_handlers=[rate_limit_sleeper, maintenance_sleeper],
     )
 
     return api
@@ -148,7 +167,7 @@ def bulk_export_files(api, files, volume, location, overwrite=True, copy_only=Fa
                 )
             )
 
-    # export files in batches of 100 files each
+    # export files in batches of chunck_size files each
     for i in range(0, len(files), chunk_size):
 
         # setup list of dictionary with export requests
