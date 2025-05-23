@@ -31,9 +31,13 @@ def find_file_in_folder(folder, search_name, result_list=None):
             new_folder = file.list_files(limit=LIMIT)
             find_file_in_folder(new_folder, search_name, result_list)
             while recieved < new_folder.total:
-                find_file_in_folder(file.list_files(limit=LIMIT, offset=recieved), search_name, result_list)
+                find_file_in_folder(
+                    file.list_files(limit=LIMIT, offset=recieved),
+                    search_name,
+                    result_list,
+                )
                 recieved += LIMIT
-            
+
     return result_list
 
 
@@ -72,8 +76,7 @@ def get_file_obj(api, project, file_name) -> str:
             recieved += LIMIT
 
         if len(found_files) == 0:
-            print(f"ERROR: File {file_name} not found in project {project}")
-            exit(1)
+            raise FileNotFoundError(f"ERROR: File {file_name} not found in project {project}")
         elif len(found_files) > 1:
             print(
                 f"ERROR: Multiple files found with name {file_name} in project {project}"
@@ -91,6 +94,22 @@ def get_file_obj(api, project, file_name) -> str:
     return file_obj
 
 
+def get_all_tasks(api, project):
+    """
+    Get all tasks in a project.
+    """
+    tasks = []
+    recieved = LIMIT
+    project_tasks = api.tasks.query(project=project, limit=LIMIT)
+    tasks.extend(project_tasks)
+    while recieved < project_tasks.total:
+        project_tasks = api.tasks.query(project=project, limit=LIMIT, offset = recieved)
+        tasks.extend(project_tasks)
+        recieved += LIMIT
+
+    return tasks
+
+
 def parse_config(profile):
     """
     Parse the config file and return the api object.
@@ -101,7 +120,80 @@ def parse_config(profile):
     api = Api(
         url=config[profile]["api_endpoint"],
         token=config[profile]["auth_token"],
-        error_handlers=[rate_limit_sleeper, maintenance_sleeper]
+        error_handlers=[rate_limit_sleeper, maintenance_sleeper],
     )
 
     return api
+
+
+def bulk_export_files(api, files, volume, location, overwrite=True, copy_only=False):
+    """
+    Exports list of files to volume in bulk
+    """
+
+    chunk_size = 100  # Max legal bulk size for export is 100 items.
+    final_responses = []
+
+    def is_finished(response):
+        return response in ["COMPLETED", "FAILED", "ABORTED"]
+
+    def error_handling_after_completion(responses):
+        errors = [
+            s.resource.error.message for s in responses if s.resource.state == "FAILED"
+        ]
+        if errors:
+            data = [
+                s.resource.error if s.resource.state == "FAILED" else s.resource.result
+                for s in responses
+            ]
+            raise Exception(
+                "There were errors with bulk exporting.\n"
+                + "\n".join([str(d) for d in data])
+            )
+
+    def error_handling_after_submission(responses):
+        errors = [s.error.message for s in responses if not s.valid]
+        if errors:
+            data = [s for s in responses if not s.valid]
+
+            raise Exception(
+                "There were errors with bulk submission.\n"
+                + "\n".join(
+                    [
+                        f"<Error: status={s.error.status}, code={s.error.code}>; "
+                        f"{s.error.message}"
+                        for s in data
+                    ]
+                )
+            )
+
+    # export files in batches of chunck_size files each
+    for i in range(0, len(files), chunk_size):
+
+        # setup list of dictionary with export requests
+        exports = [
+            {
+                "file": f,
+                "volume": volume,
+                "location": location + "/" + f.name,
+                "overwrite": overwrite,
+            }
+            for f in files[i : i + chunk_size]
+        ]
+
+        # initiate bulk export of batch and wait until finished
+        responses = api.exports.bulk_submit(exports, copy_only=copy_only)
+
+        # check for errors in bulk submission
+        error_handling_after_submission(responses)
+
+        # wait for bulk job to finish
+        while not all(is_finished(s.resource.state) for s in responses):
+            responses = api.exports.bulk_get([s.resource for s in responses])
+
+        # check if each job finished successfully
+        error_handling_after_completion(responses)
+
+        final_responses.extend(responses)
+
+    return final_responses

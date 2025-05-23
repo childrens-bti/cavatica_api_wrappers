@@ -12,6 +12,51 @@ from helper_functions import helper_functions as hf
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
+def get_input_type(my_input):
+    """
+    Get input type
+
+    Inputs:
+    - my_input: type key from workflow input
+
+    Returns:
+    - input_type: str input type (file, bool, int, or float)
+    - array: boolean True if input is an array
+    """
+    is_array = False
+    in_type = None
+
+    if isinstance(my_input, list):
+        in_type = "string"
+    elif isinstance(my_input, dict):
+        # this probably isn't needed nor and might not even be correct for enums...
+        if my_input["type"] == "File":
+            in_type = "file"
+        elif my_input["type"] == "boolean":
+            in_type = "bool"
+        elif my_input["type"] == "int":
+            in_type = "int"
+        elif my_input["type"] == "float":
+            in_type = "float"
+        else:
+            in_type = "string"
+    else:
+        if "[]" in my_input:
+            is_array = True
+        if my_input.startswith("File"):
+            in_type = "file"
+        elif my_input.startswith("boolean"):
+            in_type = "bool"
+        elif my_input.startswith("int"):
+            in_type = "int"
+        elif my_input.startswith("float"):
+            in_type = "float"
+        else:
+            in_type = "string"
+
+    return in_type, is_array
+
+
 def parse_workflow_file(workflow_file):
     """
     Parse workflow file and return inputs
@@ -24,38 +69,21 @@ def parse_workflow_file(workflow_file):
             inputs = workflow["inputs"]
             for input in inputs:
                 # figure out input type
-                if isinstance(inputs[input], str):
+                # if inputs are a list, the input workflow is stricter yaml format
+                # likely exported from Cavatica
+                if isinstance(inputs, list):
+                    workflow_inputs[input["id"]], array_input = get_input_type(input["type"])
+                    if array_input:
+                        array_inputs.append(input["id"])
+                elif isinstance(inputs[input], str):
+                    if "[]" in inputs[input]:
+                        array_inputs.append(input)
                     workflow_inputs[input] = "string"
                 elif isinstance(inputs[input], dict):
-                    for key in inputs[input]:
-                        if key == "type":
-                            if isinstance(inputs[input][key], list):
-                                workflow_inputs[input] = "string"
-                            elif isinstance(inputs[input][key], dict):
-                                if inputs[input][key]["type"] == "File":
-                                    # this probably isn't needed nor and might not even be correct for enums...
-                                    workflow_inputs[input] = "file"
-                                elif inputs[input][key]["type"] == "boolean":
-                                    workflow_inputs[input] = "bool"
-                                elif inputs[input][key]["type"] == "int":
-                                    workflow_inputs[input] = "int"
-                                elif inputs[input][key]["type"] == "float":
-                                    workflow_inputs[input] = "float"
-                                else:
-                                    workflow_inputs[input] = "string"
-                            else:
-                                if "[]" in inputs[input][key]:
-                                    array_inputs.append(input)
-                                if inputs[input][key].startswith("File"):
-                                    workflow_inputs[input] = "file"
-                                elif inputs[input][key].startswith("boolean"):
-                                    workflow_inputs[input] = "bool"
-                                elif inputs[input][key].startswith("int"):
-                                    workflow_inputs[input] = "int"
-                                elif inputs[input][key].startswith("float"):
-                                    workflow_inputs[input] = "float"
-                                else:
-                                    workflow_inputs[input] = "string"
+                    workflow_inputs[input], array_input = get_input_type(inputs[input]["type"])
+                    if array_input:
+                        array_inputs.append(input)
+
         except yaml.YAMLError as exc:
             print(exc)
             exit(1)
@@ -113,7 +141,7 @@ def create_task_script(
 
     # prase workflow file
     workflow_inputs, array_inputs = parse_workflow_file(workflow_file)
-
+    
     # parse options file and create tasks
     task_ids = []
     with open(options_file, "r") as f:
@@ -129,7 +157,9 @@ def create_task_script(
                 line_split = line.strip().split("\t")
                 for option in task_options:
                     if option not in workflow_inputs:
-                        print(f"Option {option} not in workflow inputs: {workflow_inputs}")
+                        print(
+                            f"Option {option} not in workflow inputs: {workflow_inputs}"
+                        )
                         exit(1)
                     else:
                         if option not in array_inputs:
