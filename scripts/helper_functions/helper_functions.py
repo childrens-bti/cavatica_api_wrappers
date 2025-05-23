@@ -167,7 +167,7 @@ def bulk_export_files(api, files, volume, location, overwrite=True, copy_only=Fa
                 )
             )
 
-    # export files in batches of 100 files each
+    # export files in batches of chunck_size files each
     for i in range(0, len(files), chunk_size):
 
         # setup list of dictionary with export requests
