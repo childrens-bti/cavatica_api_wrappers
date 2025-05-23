@@ -30,7 +30,7 @@ def get_input_type(my_input):
         in_type = "string"
     elif isinstance(my_input, dict):
         # this probably isn't needed nor and might not even be correct for enums...
-        if my_input["type"] == "File":
+        if my_input["type"] in ["File", "Directory"]:
             in_type = "file"
         elif my_input["type"] == "boolean":
             in_type = "bool"
@@ -44,6 +44,8 @@ def get_input_type(my_input):
         if "[]" in my_input:
             is_array = True
         if my_input.startswith("File"):
+            in_type = "file"
+        if my_input.startswith("Directory"):
             in_type = "file"
         elif my_input.startswith("boolean"):
             in_type = "bool"
