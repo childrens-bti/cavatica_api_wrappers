@@ -45,7 +45,7 @@ def get_input_type(my_input):
             is_array = True
         if my_input.startswith("File"):
             in_type = "file"
-        if my_input.startswith("Directory"):
+        elif my_input.startswith("Directory"):
             in_type = "file"
         elif my_input.startswith("boolean"):
             in_type = "bool"
@@ -143,7 +143,6 @@ def create_task_script(
 
     # prase workflow file
     workflow_inputs, array_inputs = parse_workflow_file(workflow_file)
-    
     # parse options file and create tasks
     task_ids = []
     with open(options_file, "r") as f:
