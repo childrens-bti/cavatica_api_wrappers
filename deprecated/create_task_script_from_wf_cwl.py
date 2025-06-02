@@ -26,8 +26,9 @@ def create_task_script(workflow_file):
     app_name = workflow_file.split("/")[-1].split(".")[0]
     file_inputs = []
     int_inputs = []
+    float_inputs = []
     bool_inputs = []
-    int_keywords = ["ram", "mem", "cpu", "core"]
+    array_inputs = []
     options = []
     my_inputs = []
     opt_base = f'@click.option("--'
@@ -36,20 +37,24 @@ def create_task_script(workflow_file):
             workflow = yaml.safe_load(stream)
             inputs = workflow["inputs"]
             for input in inputs:
-                if any(x in input.lower() for x in int_keywords):
-                    int_inputs.append(input)
                 option = None
                 if isinstance(inputs[input], str):
-                    option = f'{opt_base}{input}", help="{input}")'
+                    option = f'{opt_base}{input.lower()}", help="{input}")'
                 elif isinstance(inputs[input], dict):
                     has_help = False
-                    option = f'{opt_base}{input}"'
+                    option = f'{opt_base}{input.lower()}"'
                     for key in inputs[input]:
                         if key == "type":
+                            if "[]" in inputs[input][key]:
+                                array_inputs.append(input)
                             if isinstance(inputs[input][key], str) and inputs[input][key].startswith("File"):
                                 file_inputs.append(input)
                             elif isinstance(inputs[input][key], str) and  inputs[input][key].startswith("boolean"):
                                 bool_inputs.append(input)
+                            elif isinstance(inputs[input][key], str) and  inputs[input][key].startswith("int"):
+                                int_inputs.append(input)
+                            elif isinstance(inputs[input][key], str) and  inputs[input][key].startswith("float"):
+                                float_inputs.append(input)
                         elif key == "doc":
                             option += f', help="{inputs[input][key]}"'
                             has_help = True
@@ -66,7 +71,7 @@ def create_task_script(workflow_file):
                             print(f"Unknown key in input {key}")
                             exit(1)
                     if not has_help:
-                        option += f', help="{input}"'
+                        option += f', help="{input.lower()}"'
                     option += ")"
                 else:
                     print("Unknown input type")
@@ -113,6 +118,7 @@ def create_task_script(workflow_file):
 
     # imports
     print("import click")
+    print("import time")
     print("from pathlib import Path")
     print("from helper_functions import helper_functions as hf\n")
     print('CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])')
@@ -124,7 +130,7 @@ def create_task_script(workflow_file):
     # actual function and options
     print(f"def create_task(")
     for inp in my_inputs:
-        print(f"\t{inp},")
+        print(f"\t{inp.lower()},")
     print(f"):")
 
     # get api from helper functions reading config file
@@ -145,48 +151,88 @@ def create_task_script(workflow_file):
     print('\t\t\t\t\tline_vals = line.strip().split("\\t")')
 
     # figure out overrides
+    print(f'\t\t\t\t\tapp_inputs = {{}}')
     for inp in app_inputs:
-        print(f'\t\t\t\t\tif "{inp}" in overrides:')
-        print(f'\t\t\t\t\t\t{inp} = line_vals[overrides.index("{inp}")]')
+        print(f'\t\t\t\t\tif "{inp.lower()}" in overrides:')
+        print(f'\t\t\t\t\t\t{inp.lower()} = line_vals[overrides.index("{inp.lower()}")]')
+        print(f'\t\t\t\t\tif {inp.lower()} is not None:')
+        if inp in array_inputs:
+            print(f'\t\t\t\t\t\t{inp.lower()} = {inp.lower()}.split(",")')
+            print(f'\t\t\t\t\t\tfor i in range(len({inp})):')
+            if inp in file_inputs:
+                print(f'\t\t\t\t\t\t\t{inp}[i] = hf.get_file_obj(api, project, {inp}[i])')
+            elif inp in int_inputs:
+                print(f'\t\t\t\t\t\t\t{inp}[i] = int({inp}[i])')
+            elif inp in float_inputs:
+                print(f'\t\t\t\t\t\t\t{inp}[i] = float({inp}[i])')
+            elif inp in bool_inputs:
+                print(f'\t\t\t\t\t\t\t{inp}[i] = {inp}[i].lower() == "true"')
+            else:
+                print(f'\t\t\t\t\t\t\t{inp}[i] = {inp}[i]')
+            print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = {inp.lower()}')
+
+        else:
+            if inp in file_inputs:
+                print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = hf.get_file_obj(api, project, {inp.lower()})')
+            elif inp in int_inputs:
+                print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = int({inp.lower()})')
+            elif inp in float_inputs:
+                print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = float({inp.lower()})')
+            elif inp in bool_inputs:
+                print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = {inp.lower()}.lower() == "true"')
+            else:
+                print(f'\t\t\t\t\t\tapp_inputs["{inp}"] = {inp.lower()}')
 
     # write api call
     print("\t\t\t\t\tnew_task = api.tasks.create(")
     print(f'\t\t\t\t\t\tname="{app_name}",')
     print(f"\t\t\t\t\t\tproject=project,")
     print(f"\t\t\t\t\t\tapp=app,")
-    print("\t\t\t\t\t\tinputs = {")
-    for inp in app_inputs:
-        if inp in file_inputs:
-            print(f'\t\t\t\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp}),')
-        elif inp in int_inputs:
-            print(f'\t\t\t\t\t\t\t"{inp}": int({inp}),')
-        elif inp in bool_inputs:
-            print(f'\t\t\t\t\t\t\t"{inp}": bool({inp}),')
-        else:
-            print(f'\t\t\t\t\t\t\t"{inp}": {inp},')
-    print("\t\t\t\t\t\t}")
+    print("\t\t\t\t\t\tinputs = app_inputs")
     print("\t\t\t\t\t)")
     print("\t\t\t\t\tprint(new_task.name, new_task.status, new_task.id)")
     print("\t\t\t\t\ttask_ids.append(new_task.id)")
+    print("\t\t\t\t\ttime.sleep(20)")
     print("\t\t\t\tline_num += 1")
 
-    # function call
+    # call api once without an override file
     print("\telse:")
+    # figure out overrides
+    print(f'\t\tapp_inputs = {{}}')
+    for inp in app_inputs:
+        print(f'\t\tif "{inp.lower()}" in overrides:')
+        print(f'\t\t\t{inp.lower()} = line_vals[overrides.index("{inp.lower()}")]')
+        print(f'\t\tif {inp.lower()} is not None:')
+        if inp in array_inputs:
+            print(f'\t\t\t{inp.lower()} = {inp.lower()}.split(",")')
+            print(f'\t\t\tfor i in range(len({inp})):')
+            if inp in file_inputs:
+                print(f'\t\t\t\t{inp}[i] = hf.get_file_obj(api, project, {inp}[i])')
+            elif inp in int_inputs:
+                print(f'\t\t\t\t{inp}[i] = int({inp}[i])')
+            elif inp in float_inputs:
+                print(f'\t\t\t\t{inp}[i] = float({inp}[i])')
+            elif inp in bool_inputs:
+                print(f'\t\t\t\t{inp}[i] = {inp}[i].lower() == "true"')
+            else:
+                print(f'\t\t\t\t{inp}[i] = {inp}[i]')
+            print(f'\t\t\tapp_inputs["{inp}"] = {inp.lower()}')
+        else:
+            if inp in file_inputs:
+                print(f'\t\t\tapp_inputs["{inp}"] = hf.get_file_obj(api, project, {inp.lower()})')
+            elif inp in int_inputs:
+                print(f'\t\t\tapp_inputs["{inp}"] = int({inp.lower()})')
+            elif inp in float_inputs:
+                print(f'\t\t\tapp_inputs["{inp}"] = float({inp.lower()})')
+            elif inp in bool_inputs:
+                print(f'\t\t\tapp_inputs["{inp}"] = {inp.lower()}.lower() == "true"')
+            else:
+                print(f'\t\t\tapp_inputs["{inp}"] = {inp.lower()}')
     print(f"\t\tnew_task = api.tasks.create(")
     print(f'\t\t\tname="{app_name}",')
     print(f"\t\t\tproject=project,")
     print(f"\t\t\tapp=app,")
-    print("\t\t\tinputs = {")
-    for inp in app_inputs:
-        if inp in file_inputs:
-            print(f'\t\t\t\t"{inp}": hf.get_file_obj(api, project, {inp}),')
-        elif inp in int_inputs:
-            print(f'\t\t\t\t"{inp}": int({inp}),')
-        elif inp in bool_inputs:
-            print(f'\t\t\t\t"{inp}": bool({inp}), ')
-        else:
-            print(f'\t\t\t\t"{inp}": {inp},')
-    print("\t\t\t},")
+    print("\t\t\tinputs = app_inputs")
     print("\t\t)")
     print("\t\tprint(new_task.name, new_task.status, new_task.id)")
     print("\t\ttask_ids.append(new_task.id)")
