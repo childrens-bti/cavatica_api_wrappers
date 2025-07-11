@@ -143,6 +143,7 @@ def create_task_script(
 
     # prase workflow file
     workflow_inputs, array_inputs = parse_workflow_file(workflow_file)
+    
     # parse options file and create tasks
     task_ids = []
     with open(options_file, "r") as f:

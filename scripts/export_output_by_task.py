@@ -149,7 +149,6 @@ def export_task_outputs(task_file, task_id, profile, volume, location, run, debu
                 print("Dry run, not exporting")
         else:
             print("No files to export, exiting")
-        #exit(0)
 
     print("Done!")
 
