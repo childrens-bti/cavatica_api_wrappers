@@ -2,6 +2,7 @@
 
 import click
 import configparser
+import re
 from pathlib import Path
 from sevenbridges import Api
 from helper_functions import helper_functions as hf
@@ -33,7 +34,7 @@ def export_file_ids(file_ids, profile, volume, location, run, debug):
     """
     Take a task or a list of tasks and export the output data
     to an AWS bucket.
-    All files from all tasks will go to the same bucket/location.
+    All files will go to the same bucket/location.
     """
     # read config file
     api = hf.parse_config(profile)
@@ -49,6 +50,11 @@ def export_file_ids(file_ids, profile, volume, location, run, debug):
 
     # loop through files and add any secondary files
     for file in files_to_export:
+        # check if there's files that start with _#
+        # these are usually duplicated files
+        if re.match('^_\d', file.name):
+            raise ValueError(f"File {file.name} likely a duplicate, please delete or rename before exporting")
+
         if file.secondary_files is not None:
             for secondary in file.secondary_files:
                 # check if secondary already in list
@@ -77,8 +83,7 @@ def export_file_ids(file_ids, profile, volume, location, run, debug):
         else:
             print("Dry run, not exporting")
     else:
-        print("No files to export, exiting")
-        exit(0)
+        print("No files to export")
 
 
 if __name__ == "__main__":
