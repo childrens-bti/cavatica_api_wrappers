@@ -1,4 +1,4 @@
-"""Export files from a list of tasks to an AWS bucket."""
+"""Get the file ids of output files from a list of tasks."""
 
 import sys
 import click
@@ -12,9 +12,9 @@ from helper_functions import helper_functions as hf
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
-def check_and_get_files(api, task_id):
+def check_and_get_files(task):
     """
-    Check that a task is COMPLETED and export data.
+    Check that a task is COMPLETED and get files.
     Inputs:
     - api object
     - task id
@@ -23,8 +23,6 @@ def check_and_get_files(api, task_id):
     - if the task is succesful: a list of output file ids
     """
     files = []
-    task = api.tasks.get(id=task_id)
-    print(f"Current task id: {task_id}  {task.name}")
     if task.status == "COMPLETED":
         # get list of files in output folder
         for out_key in task.outputs.keys():
@@ -58,28 +56,15 @@ def check_and_get_files(api, task_id):
 @click.option("--task_file", help="File with task ids")
 @click.option("--task_id", help="Task id")
 @click.option(
-    "--volume", help="username/volume_name of volume to export to.", required=True
-)
-@click.option(
     "--profile",
     help="Profile to use from credentials file",
     default="cavatica",
     show_default=True,
 )
-@click.option(
-    "--location",
-    help="Bucket prefix to export data to (for example: volume/folder/sub-folder)",
-    default="harmonized",
-    show_default=True,
-    required=True,
-)
-@click.option("--run", help="Run the task", is_flag=True, default=False)
 @click.option("--debug", help="Print some debug messages", is_flag=True, default=False)
-def export_task_outputs(task_file, task_id, profile, volume, location, run, debug):
+def get_task_files(task_file, task_id, profile, debug):
     """
-    Take a task or a list of tasks and export the output data
-    to an AWS bucket.
-    All files from all tasks will go to the same bucket/location.
+    Take a task or a list of tasks and find all output files.
     """
     # read config file
     api = hf.parse_config(profile)
@@ -90,66 +75,45 @@ def export_task_outputs(task_file, task_id, profile, volume, location, run, debu
         print("ERROR: Please provide either a task file or a task id")
         exit(1)
     elif task_id:
-        all_tasks.append(files_to_export)
+        all_tasks.append(api.tasks.get(id=task_id))
     elif task_file:
-        print(f"Getting tasks from file: {task_file}")
         with open(task_file, "r") as f:
             for line in f:
                 task_id = line.strip()
-                all_tasks.append(task_id)
+                all_tasks.append(api.tasks.get(id=task_id))
 
+    print(f"file_name\tfile_id")
     for task in all_tasks:
-        files_to_export = []
-        files_to_export = check_and_get_files(api, task)
+        files_to_display = []
+        files_to_display = check_and_get_files(task)
 
-        # TODO: add check for duplicate file
+        if debug:
+            print(f"Current task id: {task.id}  {task.name}")
+
         # loop through files and add any secondary files, and check that both files exist
-        for file in files_to_export:
+        for file in files_to_display:
             try:
                 file_obj = api.files.get(id=file)
             except NotFound as e:
-                print(f"Can't export {file}, file doesn't exist")
+                print(f"Can't find {file}, file doesn't exist")
 
             if file.secondary_files is not None:
                 for secondary in file.secondary_files:
                     try:
                         file_obj = api.files.get(id=secondary)
                     except NotFound as e:
-                        print(f"Can't export {file.name}, file doesn't exist")
+                        print(f"Can't find {file.name}, file doesn't exist")
                     # check if secondary already in list
-                    if secondary not in files_to_export:
-                        files_to_export.append(secondary)
+                    if secondary not in files_to_display:
+                        files_to_display.append(secondary)
 
-        if debug:
-            print(f"Preparing to export the following files:")
-            for file in files_to_export:
-                print(f"{file.name}: {file.id}")
-
-        if len(files_to_export) > 0:
-            print(f"Exporting {len(files_to_export)} files to {volume}/{location}")
-            if run and not debug:
-                print("Running export")
-                try:
-                    responses = hf.bulk_export_files(
-                        api=api,
-                        files=files_to_export,
-                        volume=volume,
-                        location=location,
-                        copy_only=False,
-                    )
-                    for response in responses:
-                        print(response)
-                except Exception as e:
-                    print(f"{task} had errors when exporting")
-                    print(f"{task} had errors when exporting: {e}", file=sys.stderr)
-                print("Export complete")
-            else:
-                print("Dry run, not exporting")
+        if len(files_to_display) > 0:
+            # format output
+            for file in files_to_display:
+                print(f"{file.name}\t{file.id}")
         else:
-            print("No files to export, exiting")
-
-    print("Done!")
+            print("No files found in input task(s)")
 
 
 if __name__ == "__main__":
-    export_task_outputs()
+    get_task_files()
