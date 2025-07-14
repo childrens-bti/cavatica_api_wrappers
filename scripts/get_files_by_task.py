@@ -3,6 +3,7 @@
 import sys
 import click
 import configparser
+import re
 from pathlib import Path
 from sevenbridges import Api
 from sevenbridges.errors import NotFound
@@ -82,29 +83,26 @@ def export_task_outputs(task_file, task_id, profile, volume, location, run, debu
     """
     # read config file
     api = hf.parse_config(profile)
-    #files_to_export = []
+
+    # get all of the tasks either from --task_id or reading the --task_file file
     all_tasks = []
     if task_file and task_id:
         print("ERROR: Please provide either a task file or a task id")
         exit(1)
     elif task_id:
         all_tasks.append(files_to_export)
-        #files_to_export = check_and_get_files(api, task_id)
     elif task_file:
         print(f"Getting tasks from file: {task_file}")
         with open(task_file, "r") as f:
             for line in f:
                 task_id = line.strip()
                 all_tasks.append(task_id)
-                #files_to_export.extend(check_and_get_files(api, task_id))
-
-                #if debug:
-                #    print(f"{len(files_to_export)} files to export")
 
     for task in all_tasks:
         files_to_export = []
         files_to_export = check_and_get_files(api, task)
 
+        # TODO: add check for duplicate file
         # loop through files and add any secondary files, and check that both files exist
         for file in files_to_export:
             try:
