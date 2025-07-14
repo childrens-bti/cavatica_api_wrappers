@@ -40,13 +40,13 @@ def check_and_get_files(task):
                     files.append(task.outputs[out_key])
 
     elif task.status == "DRAFT":
-        print(f"{task} is a draft task and has not run yet, skipping")
+        print(f"{task.name} is a draft task and has not run yet, skipping")
     elif task.status == "RUNNING":
-        print(f"{task} is currently running, skipping")
+        print(f"{task.name} is currently running, skipping")
     elif task.status == "FAILED":
-        print(f"{task} has failed, skipping")
+        print(f"{task.name} has failed, skipping")
     else:
-        print(f"{task} is in an unknown state: {task.status}")
+        print(f"{task.name} is in an unknown state: {task.status}")
         print("Please check the task status and try again, skipping")
 
     return files
