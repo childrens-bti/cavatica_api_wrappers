@@ -21,7 +21,8 @@ def check_exportable(file):
     """
     # check if there's files that start with _#
     # these are usually duplicated files
-    if re.match('^_\d', file.name):
+    pattern = r"^_\d"
+    if re.match(pattern, file.name):
         raise ValueError(f"File {file.name}: {file.id} likely a duplicate, please delete or rename before exporting")
 
     # check that the file is stored on Cavatica
@@ -47,7 +48,7 @@ def check_exportable(file):
     show_default=True,
     required=True,
 )
-@click.option("--run", help="Run the task", is_flag=True, default=False)
+@click.option("--run", help="Run the export job", is_flag=True, default=False)
 @click.option("--debug", help="Print some debug messages", is_flag=True, default=False)
 def export_file_ids(file_ids, profile, volume, location, run, debug):
     """
