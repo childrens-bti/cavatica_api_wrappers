@@ -10,6 +10,25 @@ from helper_functions import helper_functions as hf
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
+def check_exportable(file):
+    """
+    Check that a file is exportable
+
+    Inputs:
+    - Cavatica file object
+
+    Returns: None
+    """
+    # check if there's files that start with _#
+    # these are usually duplicated files
+    if re.match('^_\d', file.name):
+        raise ValueError(f"File {file.name}: {file.id} likely a duplicate, please delete or rename before exporting")
+
+    # check that the file is stored on Cavatica
+    if file.storage.type != "PLATFORM":
+        raise ValueError(f"File {file.name}: {file.id} has already been exported to {file.storage.volume}")
+
+
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @click.option("--file_ids", help="File with file ids", required=True)
 @click.option(
@@ -50,16 +69,16 @@ def export_file_ids(file_ids, profile, volume, location, run, debug):
 
     # loop through files and add any secondary files
     for file in files_to_export:
-        # check if there's files that start with _#
-        # these are usually duplicated files
-        if re.match('^_\d', file.name):
-            raise ValueError(f"File {file.name} likely a duplicate, please delete or rename before exporting")
+
+        # check that the file is exported
+        check_exportable(file)
 
         if file.secondary_files is not None:
             for secondary in file.secondary_files:
-                # check if secondary already in list
-                if secondary not in files_to_export:
-                    files_to_export.append(secondary)
+                files_to_export.append(secondary)
+
+        # remove duplicates
+        files_to_export = list(set(files_to_export))
 
     if debug:
         print(f"Preparing to export the following files:")
