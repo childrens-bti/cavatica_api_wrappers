@@ -71,15 +71,23 @@ def export_file_ids(file_ids, profile, volume, location, run, debug):
     # loop through files and add any secondary files
     for file in files_to_export:
 
-        # check that the file is exported
+        # check that the file is exportable
         check_exportable(file)
 
         if file.secondary_files is not None:
             for secondary in file.secondary_files:
+                check_exportable(secondary)
                 files_to_export.append(secondary)
 
-        # remove duplicates
-        files_to_export = list(set(files_to_export))
+    # remove duplicates
+    seen = set()
+    unique_files = []
+    for file in files_to_export:
+        if file.id not in seen:
+            unique_files.append(file)
+            seen.add(file.name)
+    
+    files_to_export = unique_files
 
     if debug:
         print(f"Preparing to export the following files:")

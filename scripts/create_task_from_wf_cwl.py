@@ -141,7 +141,7 @@ def create_task_script(
             print("App name and workflow file name do not match")
             exit(1)
 
-    # prase workflow file
+    # parse workflow file
     workflow_inputs, array_inputs = parse_workflow_file(workflow_file)
     
     # parse options file and create tasks
