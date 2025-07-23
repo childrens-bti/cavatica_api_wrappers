@@ -133,6 +133,40 @@ def create_task_script(
 
     # get api
     api = hf.parse_config(profile)
+    
+    # Pre-fetch all files in the project to avoid repeated searches
+    print("Pre-fetching all files in project...", file=sys.stderr)
+    project_obj = api.projects.get(id=project)
+    all_files = {}
+    
+    def collect_files_recursive(file_list):
+        """Recursively collect files from folders"""
+        for item in file_list:
+            if item.is_folder():
+                # Get files in this folder
+                folder_files = item.list_files(limit=50)
+                collect_files_recursive(folder_files)
+                # Handle pagination for folder contents
+                received = 50
+                while received < folder_files.total:
+                    folder_files = item.list_files(limit=50, offset=received)
+                    collect_files_recursive(folder_files)
+                    received += 50
+            else:
+                # It's a file, add to our collection
+                all_files[item.name] = item
+    
+    # Get all files with pagination
+    received = 50
+    project_files = project_obj.get_files(limit=50)
+    collect_files_recursive(project_files)
+    
+    while received < project_files.total:
+        project_files = project_obj.get_files(limit=50, offset=received)
+        collect_files_recursive(project_files)
+        received += 50
+    
+    print(f"Found {len(all_files)} total files in project", file=sys.stderr)
 
     web_app_name = app.split("/")[-1]
     file_app_name = workflow_file.split("/")[-1].split(".")[0]
@@ -166,9 +200,12 @@ def create_task_script(
                         if option not in array_inputs:
                             cur_input = line_split[task_options.index(option)]
                             if workflow_inputs[option] == "file":
-                                task_inputs[option] = hf.get_file_obj(
-                                    api, project, cur_input
-                                )
+                                # Use pre-fetched files instead of searching
+                                if cur_input in all_files:
+                                    task_inputs[option] = all_files[cur_input]
+                                else:
+                                    print(f"ERROR: File {cur_input} not found in project {project}")
+                                    exit(1)
                             elif workflow_inputs[option] == "bool":
                                 task_inputs[option] = cur_input.lower() == "true"
                             elif workflow_inputs[option] == "int":
@@ -183,9 +220,12 @@ def create_task_script(
                             ].split(",")
                             for i in range(len(task_inputs[option])):
                                 if workflow_inputs[option] == "file":
-                                    task_inputs[option][i] = hf.get_file_obj(
-                                        api, project, task_inputs[option][i]
-                                    )
+                                    # Use pre-fetched files instead of searching
+                                    if task_inputs[option][i] in all_files:
+                                        task_inputs[option][i] = all_files[task_inputs[option][i]]
+                                    else:
+                                        print(f"ERROR: File {task_inputs[option][i]} not found in project {project}")
+                                        exit(1)
                                 elif workflow_inputs[option] == "bool":
                                     task_inputs[option][i] = (
                                         task_inputs[option][i].lower() == "true"
@@ -201,7 +241,7 @@ def create_task_script(
 
                 task_name = f"{web_app_name}_{today}"
                 if "output_basename" in task_inputs:
-                    task_name = f"{task_name}_{task_inputs["output_basename"]}"
+                    task_name = f"{task_name}_{task_inputs['output_basename']}"
                 else:
                     task_name = f"{task_name}_{line_num}"
 
