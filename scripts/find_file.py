@@ -23,6 +23,7 @@ def find_file(file_name, project, profile):
     print(f"Searching for file {file_name} in project {project}")
     file_obj = hf.get_file_obj(api, project, file_name)
     print(file_obj.id)
+    print(file_obj.name)
 
 if __name__ == "__main__":
     find_file()
