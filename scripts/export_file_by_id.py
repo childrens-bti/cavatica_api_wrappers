@@ -17,17 +17,24 @@ def check_exportable(file):
     Inputs:
     - Cavatica file object
 
-    Returns: None
+    Returns: boolean
     """
+
+    exportable = True
+
     # check if there's files that start with _#
     # these are usually duplicated files
     pattern = r"^_\d"
     if re.match(pattern, file.name):
-        raise ValueError(f"File {file.name}: {file.id} likely a duplicate, please delete or rename before exporting")
+        # raise ValueError(f"File {file.name}: {file.id} likely a duplicate, please delete or rename before exporting")
+        exportable = False
 
     # check that the file is stored on Cavatica
     if file.storage.type != "PLATFORM":
-        raise ValueError(f"File {file.name}: {file.id} has already been exported to {file.storage.volume}")
+        # raise ValueError(f"File {file.name}: {file.id} has already been exported to {file.storage.volume}")
+        exportable = False
+
+    return exportable
 
 
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
@@ -69,38 +76,40 @@ def export_file_ids(file_ids, profile, volume, location, run, debug):
         print(f"{len(files_to_export)} files to export")
 
     # loop through files and add any secondary files
+    exportable_files = []
     for file in files_to_export:
 
         # check that the file is exportable
-        check_exportable(file)
+        if check_exportable(file):
+            exportable_files.append(file)
 
         if file.secondary_files is not None:
             for secondary in file.secondary_files:
-                check_exportable(secondary)
-                files_to_export.append(secondary)
+                if check_exportable(secondary):
+                    exportable_files.append(secondary)
 
     # remove duplicates
     seen = set()
     unique_files = []
-    for file in files_to_export:
+    for file in exportable_files:
         if file.id not in seen:
             unique_files.append(file)
             seen.add(file.name)
-    
-    files_to_export = unique_files
+
+    exportable_files = unique_files
 
     if debug:
         print(f"Preparing to export the following files:")
-        for file in files_to_export:
+        for file in exportable_files:
             print(f"{file.name}: {file.id}")
 
     if len(files_to_export) > 0:
-        print(f"Exporting {len(files_to_export)} files to {volume}/{location}")
+        print(f"Exporting {len(exportable_files)} files to {volume}/{location}")
         if run and not debug:
             print("Running export")
             responses = hf.bulk_export_files(
                 api=api,
-                files=files_to_export,
+                files=exportable_files,
                 volume=volume,
                 location=location,
                 copy_only=False,
