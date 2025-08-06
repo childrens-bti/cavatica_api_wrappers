@@ -42,7 +42,6 @@ Warning: this is very experimental and created tasks should be manually verirife
 
 The `create_task_from_wf_cwl.py` script parses a CWL workflow and a tsv file with workflow inputs and creates tasks runing the parsed workflow in a project. The input file is described below. When the script is run, it will create draft tasks at the endpoint provided by your profile and will output a file containing the task ids of the created draft tasks. One task will be created for each line in the workflow inputs file. However, it won't load the workflow or any data needed to the project. This must be done separately.
 
-
 ### Generating Tasks
 
 1. Create the project the workflow will be run in
@@ -52,7 +51,6 @@ The `create_task_from_wf_cwl.py` script parses a CWL workflow and a tsv file wit
 1. Checkout the same github version of the workflow that matches the workflow in the project
 1. Add inputs to the input tsv file
 1. Run the script
-
 
 ### Script usage
 
@@ -80,7 +78,6 @@ Options:
 #### The Options File
 
 The options file is a tsv file with column names corresponding to workflow inputs. If an input is found in the options file, the values in that column will be used when creating draft tasks and will override any default or suggested values for that input. For example, if a workflow has an input `reference_fasta`, the values listed in the `reference_fasta` column in the input file will be used and the default value in the workflow will not.
-
 
 Example options file
 ```bash
@@ -196,4 +193,10 @@ Options:
   --profile TEXT    Profile to use from credentials file  [default: cavatica]
   --run             Run the task
   -h, --help        Show this message and exit.
+```
+
+## Running Unit tests
+
+```bash
+python -m unittest discover -s scripts
 ```
