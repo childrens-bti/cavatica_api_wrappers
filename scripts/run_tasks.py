@@ -50,9 +50,12 @@ def launch_task(task_file, task_id, profile, run):
                 task = api.tasks.get(id=task_id)
                 print(f"Current status: {task.status}")
                 if run:
-                    task.run()
-                    print(f"Updated status: {task.status}")
-                    print("Task successfully launched")
+                    try:
+                        task.run()
+                        print(f"Updated status: {task.status}")
+                        print("Task successfully launched")
+                    except Exception as e:
+                        print(f"An error occurred launching this task: {e}")
                 else:
                     print("Task was not launched")
 
