@@ -49,3 +49,6 @@ po/*~
 rsconnect/
 
 .DS_store
+
+__pycache__/
+*.pyc
