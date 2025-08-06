@@ -24,6 +24,7 @@ def find_file(file_name, project, profile):
     file_obj = hf.get_file_obj(api, project, file_name)
     print(file_obj.id)
     print(file_obj.name)
+    #print(file_obj.storage.type)
 
 if __name__ == "__main__":
     find_file()
