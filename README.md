@@ -115,10 +115,10 @@ Options:
 To add metadata to a file or list of files from a manifest, you will need a manifest file based on the templates found in the [manifest template repo](https://github.com/childrens-bti/manifest-template) and another file with a list of files and their associated Bioassay_ID.
 
 ```bash
-$ python scripts/add_metatdata.py
+python scripts/add_metatdata.py
 Usage: add_metatdata.py [OPTIONS]
 
-  Main function to add metadata in different ways
+  Add metadata to files on Cavatica
 
 Options:
   --project TEXT      Project ID
