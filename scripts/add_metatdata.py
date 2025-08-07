@@ -74,7 +74,7 @@ def process_manifest(manifest) -> dict:
 @click.option("--manifest", help="Input manifest file")
 @click.option(
     "--sample_dict",
-    help="Optional input file with file names and corresponding Bioassay ID",
+    help="Optional input file with columns file_name and Bioassay_ID",
 )
 @click.option(
     "--all",
@@ -99,7 +99,7 @@ def process_manifest(manifest) -> dict:
 def add_metadata(
     project, manifest, sample_dict, all, file_name, custom, profile, debug
 ):
-    """Main function to add metadata in different ways"""
+    """Add metadata to files on Cavatica"""
     # read config file
     api = hf.parse_config(profile)
 
