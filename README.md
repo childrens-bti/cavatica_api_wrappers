@@ -110,6 +110,33 @@ Options:
   -h, --help        Show this message and exit.
 ```
 
+## Adding metadata from manifest file
+
+To add metadata to a file or list of files from a manifest, you will need a manifest file based on the templates found in the [manifest template repo](https://github.com/childrens-bti/manifest-template) and another file with a list of files and their associated Bioassay_ID.
+
+```bash
+$ python scripts/add_metatdata.py
+Usage: add_metatdata.py [OPTIONS]
+
+  Main function to add metadata in different ways
+
+Options:
+  --project TEXT      Project ID
+  --manifest TEXT     Input manifest file
+  --sample_dict TEXT  Optional input file with columns file_name and
+                      Bioassay_ID
+  --all               Optional, try to assign metadata to all files in
+                      project. Assumes Bioassay ID is in file names
+  --file_name TEXT    Optional input file name; only for adding custom
+                      metadata
+  --custom TEXT       Custom key:value metadata to add; only used with
+                      file_name option
+  --profile TEXT      Profile to use from credentials file  [default:
+                      cavatica]
+  --debug             Print some debug messages
+  -h, --help          Show this message and exit.
+```
+
 ## Other Scripts Usages
 
 Most scripts in this repo are simple and provide usage and inputs by running them with the -h option.
