@@ -70,7 +70,10 @@ def export_file_ids(file_ids, profile, volume, location, run, debug):
     with open(file_ids, "r") as f:
         for line in f:
             file_id = line.strip()
-            files_to_export.append(api.files.get(id=file_id))
+            try:
+                files_to_export.append(api.files.get(id=file_id))
+            except Exception as e:
+                print(f"Could not find file {file_id}: {e}")
 
     if debug:
         print(f"{len(files_to_export)} files to export")
