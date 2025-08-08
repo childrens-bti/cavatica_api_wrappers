@@ -178,6 +178,8 @@ BS_1234.vcf BS_1234_example_workflow_run
 BS_9876.vcf BS_9876_example_workflow_run
 ```
 
+
+
 ## Launching draft tasks
 
 The Sevenbridges API separates creating tasks from launching them. Tasks are first created as drafts allowing for you to inspect them before running. The `run_tasks.py` script launches draft tasks using the draft task id or a file containing a list of task ids.
