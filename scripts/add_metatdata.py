@@ -34,6 +34,7 @@ def process_manifest(manifest) -> dict:
     meta_fields = {}
     required_fields = [
         "external_sample_id",
+        "external_patient_id",
         "sample_type",
         "composition",
         "experimental_strategy",
