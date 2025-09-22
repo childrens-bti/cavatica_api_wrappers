@@ -23,7 +23,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
     help="Comma separated list of additional users to add to project. See code for default users",
 )
 @click.option("--description", help="Optional, project description", default=None)
-@click.option("--run", help="Run the export job", is_flag=True, default=False)
+@click.option("--run", help="Flag to create project", is_flag=True, default=False)
 def create_project(project, profile, billing, users, description, run):
     """Create a project and add billing group"""
     # read config file
@@ -58,7 +58,9 @@ def create_project(project, profile, billing, users, description, run):
             )
         print("Adding regular users")
         if users:
-            user_list = users.split(",")
+            # remove all spaces
+            users = users.replace(" ")
+            user_list = users.split(" ", "")
             for user in user_list:
                 new_member = new_project.add_member(
                     user=user,
