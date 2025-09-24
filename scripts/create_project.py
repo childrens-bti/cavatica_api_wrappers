@@ -1,42 +1,59 @@
-"""Simple script to find a file in a project"""
+"""Script to make a Cavatica project from an issue template"""
 
 import click
+import re
 from sevenbridges import Api
+from sevenbridges.http.error_handlers import rate_limit_sleeper, maintenance_sleeper
 from helper_functions import helper_functions as hf
 
-#DEFAULT_USERS = ["sicklera", "harenzaj", "chaodi", "corbettr"]
+# DEFAULT_USERS = ["sicklera", "harenzaj", "chaodi", "corbettr"]
 DEFAULT_USERS = ["harenzaj", "chaodi", "corbettr"]
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
-@click.option("--project", help="Project name")
-@click.option(
-    "--profile",
-    help="Profile to use from credentials file",
-    default="cavatica",
-    show_default=True,
-)
-@click.option("--billing", help="Billing group name")
-@click.option(
-    "--users",
-    help="Comma separated list of additional users to add to project. See code for default users",
-)
+@click.option("--token", help="Cavatica token value")
 @click.option("--description", help="Optional, project description", default=None)
+@click.option("--body", help="Issue body json")
 @click.option("--run", help="Flag to create project", is_flag=True, default=False)
-def create_project(project, profile, billing, users, description, run):
-    """Create a project and add billing group"""
-    # read config file
-    api = hf.parse_config(profile)
+def create_project(token, body, description, run):
+    """Create a project in Cavatica"""
 
-    # get billing group id
+    # create api
+    api = Api(
+        url="https://cavatica-api.sbgenomics.com/v2",
+        token=token,
+        error_handlers=[rate_limit_sleeper, maintenance_sleeper],
+    )
+
     billing_groups = hf.get_all_billing(api)
 
-    billing_id = None
+    fields = re.split(r"### ", body)
 
-    for billing_group in billing_groups:
-        if billing_group.name == billing:
-            billing_id = billing_group.id
+    billing_id = None
+    project = None
+    user_list = None
+
+    # the split makes a blank first field so skip it
+    fields = fields[1:]
+
+    # read the fields and create project inputs
+    for field in fields:
+        pair = re.split(r"\\n\\n", field)
+        key = pair[0]
+        value = pair[1]
+        if key == "Billing":
+            for billing_group in billing_groups:
+                if billing_group.name == value:
+                    billing_id = billing_group.id
+        elif key == "Project_Name":
+            project = value
+        elif key == "Users":
+            if "No response" not in value:
+                users = users.replace(" ")
+                user_list = users.split(",", "")
+        else:
+            raise ValueError(f"Unknown field: {key}")
 
     # create project
     if run:
@@ -44,7 +61,6 @@ def create_project(project, profile, billing, users, description, run):
         new_project = api.projects.create(
             name=project, billing_group=billing_id, description=description
         )
-        # add users to project
         print("Adding admin users")
         for user in DEFAULT_USERS:
             new_member = new_project.add_member(
@@ -57,19 +73,17 @@ def create_project(project, profile, billing, users, description, run):
                 },
             )
         print("Adding regular users")
-        if users:
-            # remove all spaces
-            users = users.replace(" ")
-            user_list = users.split(" ", "")
+        if user_list:
             for user in user_list:
-                new_member = new_project.add_member(
-                    user=user,
-                    permissions={
-                        "read": True,
-                        "write": True,
-                        "execute": True,
-                    },
-                )
+                if user not in DEFAULT_USERS:
+                    new_member = new_project.add_member(
+                        user=user,
+                        permissions={
+                            "read": True,
+                            "write": True,
+                            "execute": True,
+                        },
+                    )
         print(f"Created project: {new_project.name}: {new_project.id}")
     else:
         print("DRY RUN!")
