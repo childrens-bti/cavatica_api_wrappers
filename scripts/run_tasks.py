@@ -49,7 +49,7 @@ def launch_task(task_file, task_id, profile, run):
                 print(f"Current task id: {task_id}")
                 task = api.tasks.get(id=task_id)
                 print(f"Current status: {task.status}")
-                if run:
+                if run and task.status == "DRAFT":
                     task.run()
                     print(f"Updated status: {task.status}")
                     print("Task successfully launched")
