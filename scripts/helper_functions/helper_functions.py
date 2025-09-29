@@ -268,4 +268,7 @@ def bulk_export_files(api, files, volume, location, overwrite=True, copy_only=Fa
 
         final_responses.extend(responses)
 
+        if len(final_responses) % 1000 == 0:
+            print(f"Exported: {len(final_responses)} files")
+
     return final_responses
