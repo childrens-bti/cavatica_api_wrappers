@@ -9,6 +9,42 @@ from sevenbridges.http.error_handlers import rate_limit_sleeper, maintenance_sle
 LIMIT = 50
 
 
+def get_all_files(api, project) -> list:
+    """
+    Get all files in a project including in folders
+    Inputs:
+    - api: api obejct
+    - project: project name
+    Returns:
+    - 
+    """
+    all_files = []
+
+    # get all files in the project
+    project_obj = api.projects.get(id=project)
+
+    # query project for all files using pagination
+    recieved = LIMIT
+    project_files = project_obj.get_files(limit=LIMIT)
+    all_files.extend(project_files)
+    while recieved < project_files.total:
+        project_files = project_obj.get_files(limit=LIMIT, offset=recieved)
+        all_files.extend(project_files)
+        recieved += LIMIT
+
+    # check if any of the files are a folder
+    for file in all_files:
+        if file.is_folder() == True:
+            recieved = LIMIT
+            folder_files = file.list_files(limit=LIMIT)
+            all_files.extend(folder_files)
+            while recieved < folder_files.total:
+                folder_files = file.list_files(limit=LIMIT, offset=recieved)
+                recieved += LIMIT
+
+    return all_files
+
+
 def find_file_in_folder(folder, search_name, result_list=None):
     """
     Search for a file within a folder in a project.
