@@ -6,8 +6,8 @@ from sevenbridges import Api
 from sevenbridges.http.error_handlers import rate_limit_sleeper, maintenance_sleeper
 from helper_functions import helper_functions as hf
 
-DEFAULT_USERS = ["sicklera", "harenzaj", "chaodi", "corbettr"]
-# DEFAULT_USERS = ["harenzaj", "chaodi", "corbettr"]
+# DEFAULT_USERS = ["sicklera", "harenzaj", "chaodi", "corbettr"]
+DEFAULT_USERS = ["harenzaj", "chaodi", "corbettr"]
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
@@ -59,7 +59,10 @@ def create_project(token, body, description, run):
     if run:
         print("Creating project")
         new_project = api.projects.create(
-            name=project, billing_group=billing_id, description=description
+            name=project,
+            billing_group=billing_id,
+            description=description,
+            settings={"use_memoization": True, "allow_network_access": True},
         )
         print("Adding admin users")
         for user in DEFAULT_USERS:
