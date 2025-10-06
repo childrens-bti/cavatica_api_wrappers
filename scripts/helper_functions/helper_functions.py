@@ -146,6 +146,42 @@ def get_all_tasks(api, project):
     return tasks
 
 
+def get_all_projects(api):
+    """
+    Get all projects the user has access to.
+    """
+    print("Finding projects")
+    projects = []
+    recieved = LIMIT
+    project_page = api.projects.query(limit=LIMIT)
+    projects.extend(project_page)
+    while recieved < project_page.total:
+        print(f"Looking for more projects, found {recieved}")
+        project_page = api.projects.query(limit=LIMIT, offset = recieved)
+        projects.extend(project_page)
+        recieved += LIMIT
+
+    return projects
+
+
+def get_all_billing(api):
+    """
+    Get all billing groups the user has access to.
+    """
+    print("Finding billing groups")
+    billings = []
+    recieved = LIMIT
+    billing_page = api.billing_groups.query(limit=LIMIT)
+    billings.extend(billing_page)
+    while recieved < billing_page.total:
+        print(f"Looking for more projects, found {recieved}")
+        billing_page = api.billing_groups.query(limit=LIMIT, offset = recieved)
+        billings.extend(billing_page)
+        recieved += LIMIT
+
+    return billings
+
+
 def parse_config(profile):
     """
     Parse the config file and return the api object.
@@ -231,5 +267,8 @@ def bulk_export_files(api, files, volume, location, overwrite=True, copy_only=Fa
         error_handling_after_completion(responses)
 
         final_responses.extend(responses)
+
+        if len(final_responses) % 1000 == 0:
+            print(f"Exported: {len(final_responses)} files")
 
     return final_responses
