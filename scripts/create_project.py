@@ -50,8 +50,10 @@ def create_project(token, body, description, run):
             project = value
         elif key == "Users":
             if "No response" not in value:
-                users = users.replace(" ")
-                user_list = users.split(",", "")
+                users = value
+                if " " in users:
+                    users = value.replace(" ")
+                user_list = users.split(",")
         else:
             raise ValueError(f"Unknown field: {key}")
 
@@ -85,6 +87,7 @@ def create_project(token, body, description, run):
                             "read": True,
                             "write": True,
                             "execute": True,
+                            "copy": True,
                         },
                     )
         print(f"Created project: {new_project.name}: {new_project.id}")
