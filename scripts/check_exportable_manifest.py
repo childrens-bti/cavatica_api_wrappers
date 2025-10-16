@@ -5,7 +5,6 @@ from sevenbridges import Api
 from helper_functions import helper_functions as hf
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
-LIMIT = 50
 
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @click.option("--manifest", help="Manifest File")
