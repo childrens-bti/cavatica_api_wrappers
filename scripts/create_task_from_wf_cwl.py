@@ -74,7 +74,9 @@ def parse_workflow_file(workflow_file):
                 # if inputs are a list, the input workflow is stricter yaml format
                 # likely exported from Cavatica
                 if isinstance(inputs, list):
-                    workflow_inputs[input["id"]], array_input = get_input_type(input["type"])
+                    workflow_inputs[input["id"]], array_input = get_input_type(
+                        input["type"]
+                    )
                     if array_input:
                         array_inputs.append(input["id"])
                 elif isinstance(inputs[input], str):
@@ -82,7 +84,9 @@ def parse_workflow_file(workflow_file):
                         array_inputs.append(input)
                     workflow_inputs[input] = "string"
                 elif isinstance(inputs[input], dict):
-                    workflow_inputs[input], array_input = get_input_type(inputs[input]["type"])
+                    workflow_inputs[input], array_input = get_input_type(
+                        inputs[input]["type"]
+                    )
                     if array_input:
                         array_inputs.append(input)
 
@@ -143,7 +147,7 @@ def create_task_script(
 
     # parse workflow file
     workflow_inputs, array_inputs = parse_workflow_file(workflow_file)
-    
+
     # parse options file and create tasks
     task_ids = []
     with open(options_file, "r") as f:
@@ -210,6 +214,15 @@ def create_task_script(
                 new_task = api.tasks.create(
                     name=task_name, project=project, app=app, inputs=task_inputs
                 )
+
+                # update task now that we have task id
+                if "output_basename" in new_task.inputs:
+                    if new_task.inputs["output_basename"] is None:
+                        new_task.inputs["output_basename"] = new_task.id
+                    else:
+                        new_task.inputs["output_basename"] = (f"{new_task.inputs["output_basename"]}_{new_task.id}")
+                    new_task.save()
+
                 print(f"{new_task.name}, {new_task.status}, {new_task.id}")
                 task_ids.append(new_task.id)
 
