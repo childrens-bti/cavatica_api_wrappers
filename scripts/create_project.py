@@ -52,7 +52,7 @@ def create_project(token, body, description, run):
             if "No response" not in value:
                 users = value
                 if " " in users:
-                    users = value.replace(" ")
+                    users = value.replace(" ", "")
                 user_list = users.split(",")
         else:
             raise ValueError(f"Unknown field: {key}")
