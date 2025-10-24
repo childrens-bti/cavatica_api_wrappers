@@ -31,11 +31,12 @@ def find_tasks(project, profile, status):
 
     stati = status.split(",")
 
-    print("Task Name\tTask Id")
+    print("Task Name\tTask Id\tStart Time")
 
     for task in all_tasks:
         if task.status in stati:
-            print(f"{task.name}\t{task.id}")
+            print(f"{task.name}\t{task.id}\t{task.start_time}")
+            #print(dir(task))
 
 
 if __name__ == "__main__":
