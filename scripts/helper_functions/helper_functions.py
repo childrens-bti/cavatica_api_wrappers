@@ -16,7 +16,7 @@ def get_all_files(api, project) -> list:
     - api: api obejct
     - project: project name
     Returns:
-    - 
+    -
     """
     all_files = []
 
@@ -112,7 +112,9 @@ def get_file_obj(api, project, file_name) -> str:
             recieved += LIMIT
 
         if len(found_files) == 0:
-            raise FileNotFoundError(f"ERROR: File {file_name} not found in project {project}")
+            raise FileNotFoundError(
+                f"ERROR: File {file_name} not found in project {project}"
+            )
         elif len(found_files) > 1:
             print(
                 f"ERROR: Multiple files found with name {file_name} in project {project}"
@@ -139,7 +141,7 @@ def get_all_tasks(api, project):
     project_tasks = api.tasks.query(project=project, limit=LIMIT)
     tasks.extend(project_tasks)
     while recieved < project_tasks.total:
-        project_tasks = api.tasks.query(project=project, limit=LIMIT, offset = recieved)
+        project_tasks = api.tasks.query(project=project, limit=LIMIT, offset=recieved)
         tasks.extend(project_tasks)
         recieved += LIMIT
 
@@ -150,14 +152,14 @@ def get_all_projects(api):
     """
     Get all projects the user has access to.
     """
-    print("Finding projects")
+    # print("Finding projects")
     projects = []
     recieved = LIMIT
     project_page = api.projects.query(limit=LIMIT)
     projects.extend(project_page)
     while recieved < project_page.total:
-        print(f"Looking for more projects, found {recieved}")
-        project_page = api.projects.query(limit=LIMIT, offset = recieved)
+        # print(f"Looking for more projects, found {recieved}")
+        project_page = api.projects.query(limit=LIMIT, offset=recieved)
         projects.extend(project_page)
         recieved += LIMIT
 
@@ -175,7 +177,7 @@ def get_all_billing(api):
     billings.extend(billing_page)
     while recieved < billing_page.total:
         print(f"Looking for more projects, found {recieved}")
-        billing_page = api.billing_groups.query(limit=LIMIT, offset = recieved)
+        billing_page = api.billing_groups.query(limit=LIMIT, offset=recieved)
         billings.extend(billing_page)
         recieved += LIMIT
 
