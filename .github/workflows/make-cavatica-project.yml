@@ -32,7 +32,7 @@ jobs:
       - name: Run Project Creation Script
         run: |
           python cavatica_api_wrappers/scripts \
-          --token ${{ screts.CAVATICA_TOKEN }} \
+          --token ${{ secrets.CAVATICA_TOKEN }} \
           --body github.event.issue.body \
           --description github.event.issue.body \
           --run 
