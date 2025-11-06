@@ -1,0 +1,30 @@
+name: Cavatica Project Creation
+description: Ticket to create Cavatica projects
+title: '[Project Creation]: '
+type: 'Task'
+projects: ['childrens-bti/1']
+body:
+  - type: input
+    id: project_name
+    attributes:
+      label: Project_Name
+      description: Name of project being created
+      placeholder: 'my_project'
+    validations:
+      required: true
+  - type: input
+    id: billing
+    attributes:
+      label: Billing
+      description: Billing group to use
+      placeholder: 'AWS-BTI-Core'
+    validations:
+      required: true
+  - type: input
+    id: users
+    attributes:
+      label: Users
+      description: Additional Cavatica users to add to project (comma-separated)
+      placeholder: 'sicklera,harenzaj,chaodi,corbettr'
+    validations:
+      required: false

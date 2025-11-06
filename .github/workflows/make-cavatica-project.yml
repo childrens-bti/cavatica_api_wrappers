@@ -1,0 +1,38 @@
+name: Create Cavatica Projects
+
+on:
+  issues:
+    types:
+      - opened
+
+jobs:
+  create_cavatica_project:
+    runs-on: ubuntu-latest
+    environment: cavatica-prod
+    strategy:
+      matrix:
+        python-version: ['3.12.9']
+    if: contains(github.event.issue.title, '[Project Creation]')
+
+    steps:
+      - name: Checkout API Repo
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: cavatica_api_wrappers
+          repository: childrens-bti/cavatica_api_wrappers
+          submodules: 'true'
+          token: ${{ secrets.MY_REPO_PAT }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      - name: Run Project Creation Script
+        run: |
+          python cavatica_api_wrappers/scripts \
+          --token ${{ screts.CAVATICA_TOKEN }} \
+          --body github.event.issue.body \
+          --description github.event.issue.body \
+          --run 
