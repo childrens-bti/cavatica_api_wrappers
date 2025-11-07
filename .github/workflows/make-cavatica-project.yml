@@ -31,9 +31,12 @@ jobs:
         run: |
           pip install -r requirements.txt
       - name: Run Project Creation Script
+        env: |
+          BODY: ${{ github.event.issue.body }}
+          URL: ${{ github.event.issue.url }}
         run: |
           python scripts/create_project.py \
           --token ${{ secrets.CAVATICA_TOKEN }} \
-          --body github.event.issue.body \
-          --description github.event.issue.body \
+          --body  $BODY \
+          --description $URL \
           --run 

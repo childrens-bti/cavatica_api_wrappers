@@ -26,6 +26,8 @@ def create_project(token, body, description, run):
         error_handlers=[rate_limit_sleeper, maintenance_sleeper],
     )
 
+    print(body)
+
     billing_groups = hf.get_all_billing(api)
 
     fields = re.split(r"### ", body)
