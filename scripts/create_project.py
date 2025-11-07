@@ -1,5 +1,6 @@
 """Script to make a Cavatica project from an issue template"""
 
+import os
 import click
 import re
 from sevenbridges import Api
@@ -13,10 +14,8 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @click.option("--token", help="Cavatica token value")
-@click.option("--description", help="Optional, project description", default=None)
-@click.option("--body", help="Issue body json")
 @click.option("--run", help="Flag to create project", is_flag=True, default=False)
-def create_project(token, body, description, run):
+def create_project(token, run):
     """Create a project in Cavatica"""
 
     # create api
@@ -26,9 +25,12 @@ def create_project(token, body, description, run):
         error_handlers=[rate_limit_sleeper, maintenance_sleeper],
     )
 
-    print(body)
-
     billing_groups = hf.get_all_billing(api)
+
+    body = os.environ['BODY']
+    description = os.environ['URL']
+
+    print(body)
 
     fields = re.split(r"### ", body)
 
