@@ -3,7 +3,7 @@ name: Create Cavatica Projects
 on:
   issues:
     types:
-      - opened
+      [opened, reopened]
 
 jobs:
   create_cavatica_project:
@@ -37,6 +37,6 @@ jobs:
         run: |
           python scripts/create_project.py \
           --token ${{ secrets.CAVATICA_TOKEN }} \
-          --body  $BODY \
-          --description $URL \
+          --body  "$BODY" \
+          --description "$URL" \
           --run 
