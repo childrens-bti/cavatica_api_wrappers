@@ -30,8 +30,6 @@ def create_project(token, run):
     body = os.environ['BODY']
     description = os.environ['URL']
 
-    print(body)
-
     fields = re.split(r"### ", body)
 
     billing_id = None
@@ -43,7 +41,7 @@ def create_project(token, run):
 
     # read the fields and create project inputs
     for field in fields:
-        pair = re.split(r"\\n\\n", field)
+        pair = re.split(r"\n\n", field)
         key = pair[0]
         value = pair[1]
         if key == "Billing":
