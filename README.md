@@ -109,7 +109,14 @@ Options:
 
 ## Adding metadata from manifest file
 
-To add metadata to a file or list of files from a manifest, you will need a manifest file based on the templates found in the [manifest template repo](https://github.com/childrens-bti/manifest-template) and another file with a list of files and their associated Bioassay_ID.
+To add metadata to a file or list of files from a manifest, you will need a manifest file based on the templates found in the [manifest template repo](https://github.com/childrens-bti/manifest-template), the Cavatica project with files to add metadata to, and optionally as list of task ids that generated those files. The script will generate a metadata manifest that then must be uploaded to Cavatica to update the metadata.
+
+### Steps to Add Metadata
+1. Optionally create a file with task ids.
+1. Run script to generate the metadata manifest
+1. Navigate to the project page on Cavatica, click the `Files` tab
+1. Click the 3 dots and select `Edit metadata with manifest
+1. Navigate to and upload the metadata manifest file you just created
 
 ```bash
 python scripts/add_metatdata.py
@@ -118,20 +125,14 @@ Usage: add_metatdata.py [OPTIONS]
   Add metadata to files on Cavatica
 
 Options:
-  --project TEXT      Project ID
-  --manifest TEXT     Input manifest file
-  --sample_dict TEXT  Optional input file with columns file_name and
-                      Bioassay_ID
-  --all               Optional, try to assign metadata to all files in
-                      project. Assumes Bioassay ID is in file names
-  --file_name TEXT    Optional input file name; only for adding custom
-                      metadata
-  --custom TEXT       Custom key:value metadata to add; only used with
-                      file_name option
-  --profile TEXT      Profile to use from credentials file  [default:
-                      cavatica]
-  --debug             Print some debug messages
-  -h, --help          Show this message and exit.
+  --profile TEXT          Profile to use from credentials file  [default:
+                          cavatica]
+  --project TEXT          Project ID
+  --task_file TEXT        File with task ids
+  -m, --manifest TEXT     Input Manifest file
+  -o, --output_file TEXT  Output filename
+  --debug                 Print some debug messages
+  -h, --help              Show this message and exit.
 ```
 
 ## Other Scripts Usages
