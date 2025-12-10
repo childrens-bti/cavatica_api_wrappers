@@ -82,7 +82,7 @@ def get_task_files(task_file, task_id, profile, debug):
                 task_id = line.strip()
                 all_tasks.append(api.tasks.get(id=task_id))
 
-    print(f"file_name\tfile_id")
+    print(f"file_name\tfile_id\tclass\tobject")
     for task in all_tasks:
         files_to_display = []
         files_to_display = check_and_get_files(task)
@@ -91,11 +91,24 @@ def get_task_files(task_file, task_id, profile, debug):
             print(f"Current task id: {task.id}  {task.name}")
 
         # loop through files and add any secondary files, and check that both files exist
+        print("Using result of api.files.get")
         for file in files_to_display:
             try:
                 file_obj = api.files.get(id=file)
-            except NotFound as e:
-                print(f"Can't find {file}, file doesn't exist")
+                print(f"{file_obj.name}\t{file_obj.id}\t{type(file_obj)}\t{file_obj}")
+                if file_obj == file:
+                    print("Yup, they're the same")
+                else:
+                    print("But how do we figure out what's different?")
+
+                if file.name == file_obj.name:
+                    print("This too is the same")
+                    print(file.name)
+                    print(file_obj.name)
+                else:
+                    print("But these aren't the same")
+            except Exception as e:
+                print(f"Can't find {file}, file doesn't exist: {e}")
 
             if file.secondary_files is not None:
                 for secondary in file.secondary_files:
@@ -109,8 +122,12 @@ def get_task_files(task_file, task_id, profile, debug):
 
         if len(files_to_display) > 0:
             # format output
+            print("Using file from task")
             for file in files_to_display:
-                print(f"{file.name}\t{file.id}")
+                try:
+                    print(f"{file.name}\t{file.id}\t{type(file)}\t{file}")
+                except Exception as e:
+                    print(f"Some other error occurred printing {file}")
         else:
             print("No files found in input task(s)")
 
