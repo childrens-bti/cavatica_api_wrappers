@@ -119,7 +119,7 @@ To add metadata to a file or list of files from a manifest, you will need a mani
 1. Navigate to and upload the metadata manifest file you just created
 
 ```bash
-python scripts/add_metatdata.py
+python scripts/add_metadata.py
 Usage: add_metatdata.py [OPTIONS]
 
   Add metadata to files on Cavatica
