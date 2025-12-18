@@ -69,6 +69,7 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
         "biospecimen_name",
         "tumor_name",
         "sample_id",
+        "input_tumor_name",
     ]
 
     # read config file
