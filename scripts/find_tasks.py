@@ -29,13 +29,16 @@ def find_tasks(project, profile, status):
     # get all tasks in project
     all_tasks = hf.get_all_tasks(api, project)
 
-    stati = status.split(",")
+    stati = [s.strip().upper() for s in status.split(",")]
 
-    print("Task Name\tTask Id\tStart Time")
+
+    print("Task Name\tTask Id\tStart Time\tEnd Time\tTask Status")
+
 
     for task in all_tasks:
-        if task.status in stati:
-            print(f"{task.name}\t{task.id}\t{task.start_time}")
+       if task.status.upper() in stati:
+          print(f"{task.name}\t{task.id}\t{task.start_time}\t{task.end_time}\t{task.status}")
+
             #print(dir(task))
 
 
