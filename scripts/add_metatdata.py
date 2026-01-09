@@ -1,7 +1,6 @@
 """Add metadata to files in a project"""
 
 import click
-import numpy as np
 import pandas as pd
 from sevenbridges import Api
 from sevenbridges.errors import SbgError
