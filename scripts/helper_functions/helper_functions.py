@@ -27,9 +27,16 @@ def get_all_files(api, project) -> list:
     recieved = LIMIT
     project_files = project_obj.get_files(limit=LIMIT)
     all_files.extend(project_files)
-    while recieved < project_files.total:
+    keep_going = True
+    last_id = all_files[-1].id
+    #while recieved < project_files.total:
+    while keep_going:
         project_files = project_obj.get_files(limit=LIMIT, offset=recieved)
         all_files.extend(project_files)
+        if all_files[-1].id == last_id:
+            keep_going = False
+        else:
+            last_id = all_files[-1].id
         recieved += LIMIT
 
     # check if any of the files are a folder
