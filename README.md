@@ -134,7 +134,7 @@ Options:
   -h, --help          Show this message and exit.
 ```
 
-## Other Scripts Usages
+0## Other Scripts Usages
 
 Most scripts in this repo are simple and provide usage and inputs by running them with the -h option.
 
@@ -204,7 +204,7 @@ BS_9876.vcf BS_9876_example_workflow_run
 
 ## Launching draft tasks
 
-The Sevenbridges API separates creating tasks from launching them. Tasks are first created as drafts allowing for you to inspect them before running. The `run_tasks.py` script launches draft tasks using the draft task id or a file containing a list of task ids.
+The Sevenbridges API separates creating tasks from launching them. Tasks are first created as drafts allowing for you to inspect them before running. The `run_tasks.py` script launches draft tasks using the draft task id or a file containing a list of task ids. The script will launch a limited number of tasks, wait for those tasks to finsih, output the succesful task ids to an output file and failed tasks to a different file, then launch the next set of tasks. This script should be run on a system that will allow the script to be active the entire time tasks are running. If a batch of tasks does not finish after a set amount of time, this script will stop running and you will have to manually inspect these tasks and determine if they need to be aborted or not.
 
 ```bash
 $ python run_tasks.py -h
@@ -215,11 +215,87 @@ Usage: run_tasks.py [OPTIONS]
   This will only launch draft tasks and cannot create tasks.
 
 Options:
+  --task_file TEXT        File with task ids
+  --task_id TEXT          Task id
+  --profile TEXT          Profile to use from credentials file  [default:
+                          cavatica]
+  --limit INTEGER         Limit number of tasks to run at once, set to -1 to
+                          run all task (not recommended)  [default: 50]
+  --wait INTEGER          Time in minutes to wait between checking task status
+                          [default: 60]
+  --max_checks INTEGER    Maximum number of status checks to perform
+                          [default: 12]
+  --output_basename TEXT  Base name for output files  [default: task_status]
+  -h, --help              Show this message and exit.
+```
+
+## Export Files from Cavatica
+
+To export files, you will need a list of file ids on Cavatica, the name of the volume on Cavatica, and permission within Cavatica to export to that volume.
+
+Note, Cavatica calls AWS buckets "volumes" rather than buckets and enforces shorter limits on volume namees. The volume name in Cavatica will not match the bucket name in AWS. You will need to look at the volumes you have access to at https://cavatica.sbgenomics.com/v
+
+Exporting can only be done once, cannot be undone, and moving an exported file on AWS will mean the file is no longer useable on Cavatica. Slow down, take your time.
+
+There are at least three ways to get file ids from Cavatica.
+1. Manually from the url of the file.
+1. Using the `get_files_by_task.py` script (most common)
+1. Using the `find_all_exportable.py` script
+
+The `export_file_by_id.py` script will export files from Cavatica. Authentication with AWS is handled through Cavatica, so you won't need any additional configuration.
+
+** WARNING ** before running any export commands, have the command be reviewed by someone else to ensure the data are being exported to the correct bucket.
+
+```bash
+python scripts/export_file_by_id.py
+Usage: export_file_by_id.py [OPTIONS]
+
+  Take a task or a list of tasks and export the output data to an AWS bucket.
+  All files will go to the same bucket/location.
+
+Options:
+  --file_ids TEXT  File with file ids  [required]
+  --volume TEXT    username/volume_name of volume to export to.  [required]
+  --profile TEXT   Profile to use from credentials file  [default: cavatica]
+  --location TEXT  Bucket prefix to export data to (for example:
+                   volume/folder/sub-folder)  [default: harmonized; required]
+  --run            Run the export job
+  --debug          Print some debug messages
+  -h, --help       Show this message and exit.
+```
+
+### Getting file ids using `get_files_by_task.py`
+
+The `get_files_by_task.py` script takes a file with a list of task ids such as ones created by the `run_tasks.py` script above. The output of this script is two tab separated columns file name and file id. You only need the second column for exporting.
+
+```bash
+python scripts/get_files_by_task.py
+Usage: get_files_by_task.py [OPTIONS]
+
+  Take a task or a list of tasks and find all output files.
+
+Options:
   --task_file TEXT  File with task ids
   --task_id TEXT    Task id
   --profile TEXT    Profile to use from credentials file  [default: cavatica]
-  --run             Run the task
-  -h, --help        Show this message and exit.
+  --debug           Print some debug messages
+  -h, --help        Show this message and exit
+```
+
+### Getting file ids using `find_all_exportable.py`
+
+The `find_all_exportable.py` script will scan an input project for all files that haven't been exported. One current limitation of the Cavatica API is that files from DRS appear as if they exist only on Cavatica like non-exported files even though they are not exportable. These will have to be manually removed from the output. The output of this script is three tab separated columns: file name, file id, and created date.
+
+```bash
+python scripts/find_all_exportable.py
+Usage: find_all_exportable.py [OPTIONS]
+
+  Find a file in a project
+
+Options:
+  --project TEXT  Project ID
+  --profile TEXT  Profile to use from credentials file  [default: cavatica]
+  -h, --help      Show this message and exit
 ```
 
 ## Running Unit tests
