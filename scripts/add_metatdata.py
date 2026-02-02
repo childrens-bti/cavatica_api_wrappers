@@ -91,7 +91,7 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
         "mean_coverage",
         "project",
     ]
-    man_df = man_df.drop(unneeded_cols, axis=1).drop_duplicates()
+    man_df = man_df.drop(unneeded_cols, errors='ignore', axis=1).drop_duplicates()
 
     if debug:
         print(man_df.columns)
