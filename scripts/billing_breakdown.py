@@ -8,7 +8,7 @@ from helper_functions import helper_functions as hf
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
-@click.option("--group_name", help="File name")
+@click.option("--group_name", help="File name", default = "AWS-BTI-Core")
 @click.option("--start_date", help="Start date in mm-dd-yyyy format")
 @click.option("--end_date", help="End date in mm-dd-yyyy format")
 @click.option(
