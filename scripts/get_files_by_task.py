@@ -2,8 +2,6 @@
 
 import sys
 import click
-import configparser
-import re
 from pathlib import Path
 from sevenbridges import Api
 from sevenbridges.errors import NotFound
@@ -40,14 +38,14 @@ def check_and_get_files(task):
                     files.append(task.outputs[out_key])
 
     elif task.status == "DRAFT":
-        print(f"{task.name} is a draft task and has not run yet, skipping")
+        print(f"{task.name} is a draft task and has not run yet, skipping", file=sys.stderr)
     elif task.status == "RUNNING":
-        print(f"{task.name} is currently running, skipping")
+        print(f"{task.name} is currently running, skipping", file=sys.stderr)
     elif task.status == "FAILED":
-        print(f"{task.name} has failed, skipping")
+        print(f"{task.name} has failed, skipping", file=sys.stderr)
     else:
-        print(f"{task.name} is in an unknown state: {task.status}")
-        print("Please check the task status and try again, skipping")
+        print(f"{task.name} is in an unknown state: {task.status}", file=sys.stderr)
+        print("Please check the task status and try again, skipping", file=sys.stderr)
 
     return files
 
@@ -72,7 +70,7 @@ def get_task_files(task_file, task_id, profile, debug):
     # get all of the tasks either from --task_id or reading the --task_file file
     all_tasks = []
     if task_file and task_id:
-        print("ERROR: Please provide either a task file or a task id")
+        print("ERROR: Please provide either a task file or a task id", file=sys.stderr)
         exit(1)
     elif task_id:
         all_tasks.append(api.tasks.get(id=task_id))
@@ -95,14 +93,14 @@ def get_task_files(task_file, task_id, profile, debug):
             try:
                 file_obj = api.files.get(id=file)
             except NotFound as e:
-                print(f"Can't find {file}, file doesn't exist")
+                print(f"Can't find {file}, file doesn't exist", file=sys.stderr)
 
             if file.secondary_files is not None:
                 for secondary in file.secondary_files:
                     try:
                         file_obj = api.files.get(id=secondary)
                     except NotFound as e:
-                        print(f"Can't find {file.name}, file doesn't exist")
+                        print(f"Can't find {file.name}, file doesn't exist", file=sys.stderr)
                     # check if secondary already in list
                     if secondary not in files_to_display:
                         files_to_display.append(secondary)
