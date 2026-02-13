@@ -102,6 +102,9 @@ def launch_task(task_file, task_id, profile, limit, wait, max_checks, output_bas
                 try:
                     task.run()
                     running_tasks.append(task_id)
+                    if task.status != "RUNNING":
+                        print(f"Task {task_id} failed to start, status: {task.status}")
+                        failed_tasks.append(task_id)
                 except Exception as e:
                     print(f"An error occurred launching this task: {e}")
                     failed_tasks.append(task_id)
