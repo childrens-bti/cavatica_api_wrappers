@@ -28,6 +28,8 @@ def delete_failed_output_files(profile, project, files, run):
 
     api = hf.parse_config(profile)
 
+    project = hf.parse_project(project)
+
     with open(files, "r") as f:
         for line in f:
             file_name = line.strip()

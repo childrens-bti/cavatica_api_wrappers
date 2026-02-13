@@ -22,6 +22,8 @@ def find_file(metadata, project, profile, in_file):
     # read config file
     api = hf.parse_config(profile)
 
+    project = hf.parse_project(project)
+
     # get all of the files in the project
     all_files = hf.get_all_files(api, project)
 

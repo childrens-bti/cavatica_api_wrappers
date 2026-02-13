@@ -32,6 +32,8 @@ def delete_failed_output_files(profile, project, files, run):
 
     api = hf.parse_config(profile)
 
+    project = hf.parse_project(project)
+
     # get failed tasks in project
     all_tasks = hf.get_all_tasks(api, project)
 

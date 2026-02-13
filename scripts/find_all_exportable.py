@@ -20,6 +20,8 @@ def find_file(project, profile):
     # read config file
     api = hf.parse_config(profile)
 
+    project = hf.parse_project(project)
+
     # get all of the files in the project
     all_files = hf.get_all_files(api, project)
     print(f"Found {len(all_files)} files in project {project}")
