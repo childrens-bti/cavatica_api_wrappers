@@ -1,6 +1,7 @@
 import unittest
 import io
 import sys
+from contextlib import redirect_stderr
 from get_files_by_task import check_and_get_files
 
 
@@ -20,14 +21,9 @@ class TestCheckAndGetFiles(unittest.TestCase):
         # create test task object
         task = MyClass("test_draft_task", "DRAFT")
 
-        # Create a string buffer to capture output
-        captured_output = io.StringIO()
-        # Redirect stdout to the buffer
-        sys.stdout = captured_output
         # call the function
-        out_files = check_and_get_files(task)
-        # Restore original stdout
-        sys.stdout = sys.__stdout__
+        with redirect_stderr(io.StringIO()) as captured_output:
+            out_files = check_and_get_files(task)
 
         # test that outputs are correct
         self.assertEqual(out_files, [])
@@ -44,14 +40,12 @@ class TestCheckAndGetFiles(unittest.TestCase):
         # create test task object
         task = MyClass("test_failed_task", "FAILED")
 
-        # Create a string buffer to capture output
-        captured_output = io.StringIO()
-        # Redirect stdout to the buffer
-        sys.stdout = captured_output
         # call the function
-        out_files = check_and_get_files(task)
-        # Restore original stdout
-        sys.stdout = sys.__stdout__
+        with redirect_stderr(io.StringIO()) as captured_output:
+            out_files = check_and_get_files(task)
+
+        # test that outputs are correct
+        self.assertEqual(out_files, [])
 
         # test that outputs are correct
         self.assertEqual(out_files, [])
@@ -67,14 +61,13 @@ class TestCheckAndGetFiles(unittest.TestCase):
         # create test task object
         task = MyClass("test_unknown_task", "DIFFERENT")
 
-        # Create a string buffer to capture output
-        captured_output = io.StringIO()
-        # Redirect stdout to the buffer
-        sys.stdout = captured_output
         # call the function
-        out_files = check_and_get_files(task)
-        # Restore original stdout
-        sys.stdout = sys.__stdout__
+        with redirect_stderr(io.StringIO()) as captured_output:
+            out_files = check_and_get_files(task)
+
+        # test that outputs are correct
+        self.assertEqual(out_files, [])
+
 
         # test that outputs are correct
         self.assertEqual(out_files, [])
@@ -95,14 +88,9 @@ class TestCheckAndGetFiles(unittest.TestCase):
             "intervar_classification": "intervar",
         }
 
-        # Create a string buffer to capture output
-        captured_output = io.StringIO()
-        # Redirect stdout to the buffer
-        sys.stdout = captured_output
         # call the function
-        out_files = check_and_get_files(task)
-        # Restore original stdout
-        sys.stdout = sys.__stdout__
+        with redirect_stderr(io.StringIO()) as captured_output:
+            out_files = check_and_get_files(task)
 
         # test that outputs are correct
         self.assertEqual(out_files, ["file1.vcf.gz", "intervar"])
@@ -120,14 +108,9 @@ class TestCheckAndGetFiles(unittest.TestCase):
             "intervar_classification": ["intervar"],
         }
 
-        # Create a string buffer to capture output
-        captured_output = io.StringIO()
-        # Redirect stdout to the buffer
-        sys.stdout = captured_output
         # call the function
-        out_files = check_and_get_files(task)
-        # Restore original stdout
-        sys.stdout = sys.__stdout__
+        with redirect_stderr(io.StringIO()) as captured_output:
+            out_files = check_and_get_files(task)
 
         # test that outputs are correct
         self.assertEqual(out_files, ["file1.vcf.gz", "file2.vcf.gz", "intervar"])
@@ -145,14 +128,9 @@ class TestCheckAndGetFiles(unittest.TestCase):
             "intervar_classification": None,
         }
 
-        # Create a string buffer to capture output
-        captured_output = io.StringIO()
-        # Redirect stdout to the buffer
-        sys.stdout = captured_output
         # call the function
-        out_files = check_and_get_files(task)
-        # Restore original stdout
-        sys.stdout = sys.__stdout__
+        with redirect_stderr(io.StringIO()) as captured_output:
+            out_files = check_and_get_files(task)
 
         # test that outputs are correct
         self.assertEqual(out_files, ["file1.vcf.gz", "file2.vcf.gz"])
