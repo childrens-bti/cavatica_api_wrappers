@@ -113,6 +113,21 @@ class TestCheckAndGetFiles(unittest.TestCase):
         # test that this raises an error
         with self.assertRaises(ValueError):
             parse_project(input_project)
+    
+    def test_project_none(self):
+        """Test when project is None"""
+
+        input_project = None
+        expect_project = None
+
+        # call the function
+        out_project = parse_project(input_project)
+
+        # test that the message is correct
+        self.assertEqual(
+            out_project,
+            expect_project,
+        )
 
 
 if __name__ == "__main__":

@@ -289,21 +289,24 @@ def parse_project(project):
     """
     out_project = None
 
-    project_split = project.split("/")
-    if len(project_split) == 2:
-        out_project = project_split[-2] + "/" + project_split[-1]
-    elif len(project_split) > 2:
-        # check if url contains "u/" which indicates the start of the project id
-        if "u" in project_split:
-            u_index = project_split.index("u")
-            out_project = project_split[u_index + 1] + "/" + project_split[u_index + 2]
+    # project can be None if a project is not required by a script
+    if project is not None:
+
+        project_split = project.split("/")
+        if len(project_split) == 2:
+            out_project = project_split[-2] + "/" + project_split[-1]
+        elif len(project_split) > 2:
+            # check if url contains "u/" which indicates the start of the project id
+            if "u" in project_split:
+                u_index = project_split.index("u")
+                out_project = project_split[u_index + 1] + "/" + project_split[u_index + 2]
+            else:
+                raise ValueError(
+                    f"ERROR: Project {project} is not in the correct format, please provide a project id in the format 'user/project' or a url containing 'u/' followed by the project id"
+                )
         else:
             raise ValueError(
                 f"ERROR: Project {project} is not in the correct format, please provide a project id in the format 'user/project' or a url containing 'u/' followed by the project id"
             )
-    else:
-        raise ValueError(
-            f"ERROR: Project {project} is not in the correct format, please provide a project id in the format 'user/project' or a url containing 'u/' followed by the project id"
-        )
 
     return out_project
