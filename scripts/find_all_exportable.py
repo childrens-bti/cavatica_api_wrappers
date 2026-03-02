@@ -27,10 +27,6 @@ def find_file(project, profile):
     # check each file's storage.type
     for file in all_files:
 
-        if file.id == "68d709388f828964f23ef782":
-            print("found our file")
-            print(file.storage.type)
-
         # check if it's a folder
         if file.is_folder() == True:
             continue
@@ -41,8 +37,6 @@ def find_file(project, profile):
 
             # output to screen
             print(out_line)
-        else:
-            print(f"Skipping non-exportable file {file.name} ({file.id}) with storage type {file.storage.type}")
 
 
 if __name__ == "__main__":
