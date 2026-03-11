@@ -34,10 +34,18 @@ def copy_files(file_ids, profile, project):
             files.append(line.strip())
 
     print(f"Copying files to project: {project}")
-    copy_results = api.actions.bulk_copy_files(
-        files=files,
-        destination_project=project,
-    )
+
+    # do copies in chunks of 500
+    chunk_size = 500
+    copy_results = {}
+    for i in range(0, len(files), chunk_size):
+        chunk = files[i : i + chunk_size]
+        print(f"Copying files {i} to {i + chunk_size}")
+        copy_result = api.actions.bulk_copy_files(
+            files=chunk,
+            destination_project=project,
+        )
+        copy_results.update(copy_result)
 
     for original_file_id, copy_result in copy_results.items():
         print(original_file_id, copy_result)
