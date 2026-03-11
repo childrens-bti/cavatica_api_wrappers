@@ -136,6 +136,7 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
             metadata_row = man_df.loc[man_df["Bioassay_ID"] == sample_name].copy()
 
             if metadata_row.shape[0] > 1:
+                metadata_row.to_csv(f"{sample_name}_matches.tsv", sep="\t", index=False)
                 raise ValueError(f"{sample_name} has multiple values in {manifest}")
 
             task_df = pd.DataFrame(columns=["id", "name", "project"])
