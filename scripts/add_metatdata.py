@@ -52,11 +52,13 @@ def get_task_files(task) -> list:
     "--manifest",
     "-m",
     help="Input Manifest file",
+    required=True,
 )
 @click.option(
     "--output_file",
     "-o",
     help="Output filename",
+    required=True,
 )
 @click.option("--debug", help="Print some debug messages", is_flag=True, default=False)
 def add_metadata(profile, project, task_file, manifest, output_file, debug):
@@ -126,11 +128,21 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
             sample_name = None
             matches = [task.inputs[key] for key in sample_fields if key in task.inputs]
             if len(matches) == 0:
-                print(f"Task {task.name} has no sample name-like field, skipping")
-                continue
+                if "output_basename" in task.inputs:
+                    # try parsing output_basename for sample name
+                    # this assumes out basenames are named like {sample_name}_taskid
+                    if isinstance(task.inputs["output_basename"], str):
+                        # skip if output_basename is not a string (mostly NGS checkmate)
+                        base_split = task.inputs["output_basename"].split("_")
+                        sample_name = "_".join(base_split[:2])
+                if sample_name is None:
+                    # if we can't figure out what the sample_name should be, skip this task
+                    print(f"Task {task.name} has no sample name-like field, skipping")
+                    continue
             elif len(matches) != 1:
                 raise ValueError(f"Expected exactly one match, got {len(matches)}")
-            sample_name = matches[0]
+            else:
+                sample_name = matches[0]
 
             # look up that sample name in the manifest
             metadata_row = man_df.loc[man_df["Bioassay_ID"] == sample_name].copy()
