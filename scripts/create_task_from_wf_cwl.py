@@ -138,6 +138,8 @@ def create_task_script(
     # get api
     api = hf.parse_config(profile)
 
+    project = hf.parse_project(project)
+
     web_app_name = app.split("/")[-1]
     file_app_name = workflow_file.split("/")[-1].split(".")[0]
     if web_app_name != file_app_name:

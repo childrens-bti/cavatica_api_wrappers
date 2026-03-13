@@ -28,6 +28,8 @@ def delete_tasks(profile, project, run):
     # Auth
     api = hf.parse_config(profile)
 
+    project = hf.parse_project(project)
+
     # Discover tasks
     all_tasks = hf.get_all_tasks(api, project)
 

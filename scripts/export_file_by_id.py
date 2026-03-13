@@ -38,7 +38,7 @@ def check_exportable(file):
 
 
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
-@click.option("--file_ids", help="File with file ids", required=True)
+@click.option("--file_ids", help="tsv file with file_id column", required=True)
 @click.option(
     "--volume", help="username/volume_name of volume to export to.", required=True
 )
@@ -67,11 +67,15 @@ def export_file_ids(file_ids, profile, volume, location, run, debug):
     api = hf.parse_config(profile)
     files_to_export = []
     print(f"Getting file ids from file: {file_ids}")
+    file_id_index = None
     with open(file_ids, "r") as f:
         for line in f:
-            file_id = line.strip()
-            if file_id != "file_id":
-                # skip header row
+            line_split = line.strip().split("\t")
+            if "file_id" in line_split:
+                # get the index of the file_id column
+                file_id_index = line_split.index("file_id")
+            else:
+                file_id = line_split[file_id_index]
                 try:
                     files_to_export.append(api.files.get(id=file_id))
                 except Exception as e:

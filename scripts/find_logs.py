@@ -29,6 +29,8 @@ def find_logs(profile, project, task_file, debug, output_file):
     # read config file
     api = hf.parse_config(profile)
 
+    project = hf.parse_project(project)
+
     # get all tasks or a list of tasks in a project
     tasks = []
     if project and task_file:

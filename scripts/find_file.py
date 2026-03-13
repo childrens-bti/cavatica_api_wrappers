@@ -20,6 +20,7 @@ def find_file(file_name, project, profile):
     """Find a file in a project"""
     # read config file
     api = hf.parse_config(profile)
+    project = hf.parse_project(project)
     print(f"Searching for file {file_name} in project {project}")
     file_obj = hf.get_file_obj(api, project, file_name)
     print(file_obj.id)

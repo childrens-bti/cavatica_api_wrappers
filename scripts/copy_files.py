@@ -25,6 +25,8 @@ def copy_files(file_ids, profile, project):
     # read config file
     api = hf.parse_config(profile)
 
+    project = hf.parse_project(project)
+
     files = []
 
     with open(file_ids, "r") as f:

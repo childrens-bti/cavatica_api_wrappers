@@ -29,7 +29,7 @@ def get_all_files(api, project) -> list:
     all_files.extend(project_files)
     keep_going = True
     last_id = all_files[-1].id
-    #while recieved < project_files.total:
+    # while recieved < project_files.total:
     while keep_going:
         project_files = project_obj.get_files(limit=LIMIT, offset=recieved)
         all_files.extend(project_files)
@@ -281,3 +281,32 @@ def bulk_export_files(api, files, volume, location, overwrite=True, copy_only=Fa
             print(f"Exported: {len(final_responses)} files")
 
     return final_responses
+
+
+def parse_project(project):
+    """
+    Parse the project id or url and return just the id
+    """
+    out_project = None
+
+    # project can be None if a project is not required by a script
+    if project is not None:
+
+        project_split = project.split("/")
+        if len(project_split) == 2:
+            out_project = project_split[-2] + "/" + project_split[-1]
+        elif len(project_split) > 2:
+            # check if url contains "u/" which indicates the start of the project id
+            if "u" in project_split:
+                u_index = project_split.index("u")
+                out_project = project_split[u_index + 1] + "/" + project_split[u_index + 2]
+            else:
+                raise ValueError(
+                    f"ERROR: Project {project} is not in the correct format, please provide a project id in the format 'user/project' or a url containing 'u/' followed by the project id"
+                )
+        else:
+            raise ValueError(
+                f"ERROR: Project {project} is not in the correct format, please provide a project id in the format 'user/project' or a url containing 'u/' followed by the project id"
+            )
+
+    return out_project

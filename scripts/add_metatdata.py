@@ -62,6 +62,8 @@ def get_task_files(task) -> list:
 def add_metadata(profile, project, task_file, manifest, output_file, debug):
     """Add metadata to files on Cavatica"""
 
+    project = hf.parse_project(project)
+
     # different "sample name" fields
     sample_fields = [
         "sample_name",

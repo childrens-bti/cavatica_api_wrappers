@@ -26,6 +26,8 @@ def find_tasks(project, profile, status):
     # read config file
     api = hf.parse_config(profile)
 
+    project = hf.parse_project(project)
+
     # get all tasks in project
     all_tasks = hf.get_all_tasks(api, project)
 
