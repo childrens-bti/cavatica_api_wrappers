@@ -7,7 +7,7 @@ from sevenbridges import Api
 from sevenbridges.http.error_handlers import rate_limit_sleeper, maintenance_sleeper
 from helper_functions import helper_functions as hf
 
-DEFAULT_USERS = ["sicklera", "harenzaj", "chaodi", "corbettr"]
+DEFAULT_USERS = ["sicklera", "harenzaj", "chaodi", "corbettr", "farrow1"]
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
@@ -26,8 +26,8 @@ def create_project(token, run):
 
     billing_groups = hf.get_all_billing(api)
 
-    body = os.environ['BODY']
-    description = os.environ['URL']
+    body = os.environ["BODY"]
+    description = os.environ["URL"]
 
     fields = re.split(r"### ", body)
 
