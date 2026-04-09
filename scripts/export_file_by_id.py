@@ -94,6 +94,7 @@ def export_file_ids(file_ids, profile, volume, location, run):
     # loop through files and add any secondary files
     exportable_files = []
     for loc in file_location_dict:
+        unique_files = []
         for file in file_location_dict[loc]:
 
             # check that the file is exportable
@@ -105,9 +106,12 @@ def export_file_ids(file_ids, profile, volume, location, run):
                     if check_exportable(secondary):
                         files_to_export += 1
                         file_location_dict[loc].append(secondary)
-        file_location_dict[loc] = list(set(file_location_dict[loc]))
 
-    if len(files_to_export) > 0:
+            if file not in unique_files:
+                unique_files.append(file)
+        file_location_dict[loc] = unique_files
+
+    if files_to_export > 0:
         print(f"Exporting {len(exportable_files)} files to {volume}")
         # export files to each location
         for loc in file_location_dict:
