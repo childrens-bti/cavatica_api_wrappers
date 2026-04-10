@@ -245,6 +245,10 @@ There are at least three ways to get file ids from Cavatica.
 
 The `export_file_by_id.py` script will export files from Cavatica. Authentication with AWS is handled through Cavatica, so you won't need any additional configuration.
 
+The input file, provided by the `file_ids` option is a tsv file with two required columns: `file_name` and `file_id`.
+
+Files can be exported to sub-prefixes within the bucket and prefix designated by the `volume` and `location` option, but this must be set manually in the input file. If the file_name contains `/`s, each slash will be a separate sub-prefix of the `location` option. For example, for the line `outputs/bob.txt 12345`, volume `--volume sicklera/my_test_volume`, and location `--location harmonized`; the file `bob.txt` will be exported to `harmonized/outputs/bob.txt` in the AWS bucket that `my_test_volume` corresponds to. If there are no `/`s in the file name, the file(s) will be exported to the prefix given by the `location` paramter.
+
 ** WARNING ** before running any export commands, have the command be reviewed by someone else to ensure the data are being exported to the correct bucket.
 
 ```bash
