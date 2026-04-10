@@ -9,6 +9,43 @@ from sevenbridges.http.error_handlers import rate_limit_sleeper, maintenance_sle
 LIMIT = 50
 
 
+def get_all_files_folder(api, folder) -> list:
+    """
+    Get all files in a folder including in sub folders
+    Inputs:
+    - api: api obejct
+    - folder: file object with is_folder() == True
+    Returns:
+    - list of file objects in the folder and subfolders
+    """
+
+    all_files = []
+
+    if folder.is_folder() == False:
+        raise ValueError(f"ERROR: File {folder.name} is not a folder")
+    
+    # get all of the files in a folder
+    all_files.extend(folder.list_files(limit=LIMIT))
+    keep_going = True
+    while keep_going:
+        folder_files = folder.list_files(limit=LIMIT, offset=len(all_files))
+        all_files.extend(folder_files)
+        if len(all_files) >= folder_files.total:
+            keep_going = False
+
+    # check if any of the files are a folder
+    for file in all_files:
+        if file.is_folder() == True:
+            recieved = LIMIT
+            folder_files = file.list_files(limit=LIMIT)
+            all_files.extend(folder_files)
+            while recieved < folder_files.total:
+                folder_files = file.list_files(limit=LIMIT, offset=recieved)
+                recieved += LIMIT
+
+    return all_files
+
+
 def get_all_files(api, project) -> list:
     """
     Get all files in a project including in folders
