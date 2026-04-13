@@ -127,7 +127,7 @@ def export_file_ids(file_ids, profile, volume, location, run):
                 )
                 for response in responses:
                     print(response)
-                print("fSuccessfully exported {len(file_location_dict[loc])} files to {volume}/{loc}")
+                print(f"Successfully exported {len(file_location_dict[loc])} files to {volume}/{loc}")
             else:
                 print("Dry run, not exporting")
                 print(f"Would export {len(file_location_dict[loc])} files to {volume}/{loc}")
