@@ -80,9 +80,9 @@ def get_task_files(task_file, task_id, profile, debug):
     # maybe because "default" and "suggested" are different?
     series_dict = {}
     for task in all_tasks:
-        s = pd.Series()
+        s = pd.Series(dtype="object")
         s["project"] = task.project
-        s["Task id"]= task.id}
+        s["Task id"] = task.id
         t_name = task.name.replace(" ", "_")
         s["Task name"] = t_name
         s["Task status"] = task.status
@@ -106,10 +106,16 @@ def get_task_files(task_file, task_id, profile, debug):
                 else:
                     obj = get_printable(task.inputs[inp], api)
                     s[inp] = obj
-        series_dict[t_name] = s
+        series_dict[task.id] = s
 
     # write to spreadsheet as one series per task
-    
+    out_spreadsheet = Path(f"task_inputs.xlsx")
+    with pd.ExcelWriter(out_spreadsheet) as writer:
+        for key, s in series_dict.items():
+            sheet = key.replace(":", "_")
+            if debug:
+                print(f"Writing task {key} to {out_spreadsheet}")
+            s.to_frame(name="value").to_excel(writer, sheet_name=sheet, index=True)
 
     print("DONE!")
 
