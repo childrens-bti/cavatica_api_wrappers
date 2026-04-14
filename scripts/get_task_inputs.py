@@ -2,6 +2,7 @@
 
 import sys
 import click
+import pandas as pd
 from pathlib import Path
 from sevenbridges import Api
 from sevenbridges.errors import NotFound
@@ -77,37 +78,38 @@ def get_task_files(task_file, task_id, profile, debug):
     # not sure if .inputs gives us all or just non-default....
     # feels like somewhere in between???
     # maybe because "default" and "suggested" are different?
-    out_files = []
+    series_dict = {}
     for task in all_tasks:
-        # save this info to a file
-        out_file = Path(f"{task.project.split("/")[-1]}_{task.name}_inputs.txt")
-        out_files.append(out_file)
-        with open(out_file, "w") as f:
-            f.write(f"Task id:{task.id}")
-            f.write(f"Task Name:{task.name}")
-            f.write(f"Task status:{task.status}")
-            for inp in task.inputs:
-                if task.inputs[inp] is not None:
-                    if debug:
-                        print(f"Input name:{inp}")
-                        print(f"Input value:{task.inputs[inp]}")
-                        print(f"Input type:{type(task.inputs[inp])}")
-                    if type(task.inputs[inp]) is list:
-                        all_objs = []
-                        for item in task.inputs[inp]:
-                            if type(item) is list:
-                                for sub in item:
-                                    obj = get_printable(sub, api)
-                                    all_objs.append(obj)
-                            else:
-                                obj = get_printable(item, api)
+        s = pd.Series()
+        s["project"] = task.project
+        s["Task id"]= task.id}
+        t_name = task.name.replace(" ", "_")
+        s["Task name"] = t_name
+        s["Task status"] = task.status
+        for inp in task.inputs:
+            if task.inputs[inp] is not None:
+                if debug:
+                    print(f"Input name:{inp}")
+                    print(f"Input value:{task.inputs[inp]}")
+                    print(f"Input type:{type(task.inputs[inp])}")
+                if type(task.inputs[inp]) is list:
+                    all_objs = []
+                    for item in task.inputs[inp]:
+                        if type(item) is list:
+                            for sub in item:
+                                obj = get_printable(sub, api)
                                 all_objs.append(obj)
-                        f.write(f"{inp}:{",".join(all_objs)}")
-                    else:
-                        obj = get_printable(task.inputs[inp], api)
-                        f.write(f"{inp}:{obj}")
+                        else:
+                            obj = get_printable(item, api)
+                            all_objs.append(obj)
+                    s[inp] = ",".join(all_objs)
+                else:
+                    obj = get_printable(task.inputs[inp], api)
+                    s[inp] = obj
+        series_dict[t_name] = s
 
-    # TODO: condense the files into one spreadsheet with one file per tab named after the file
+    # write to spreadsheet as one series per task
+    
 
     print("DONE!")
 
