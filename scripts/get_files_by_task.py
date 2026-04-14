@@ -21,31 +21,33 @@ def get_regular_files(api, all_tasks, debug=False):
     """
     for task in all_tasks:
         files_to_display = []
-        files_to_display = check_and_get_files(task)
+        initial_files = []
+        initial_files = check_and_get_files(task)
 
         if debug:
             print(f"Current task id: {task.id}  {task.name}")
 
         # loop through files and add any secondary files, and check that both files exist
-        for file in files_to_display:
+        for file in initial_files:
             try:
                 file_obj = api.files.get(id=file)
             except NotFound as e:
                 print(f"Can't find {file}, file doesn't exist", file=sys.stderr)
 
             if file_obj.is_folder():
-                raise ValueError(
-                    f"{file_obj.name} is a folder. If you are getting files from an scRNA task, \
-                    use the --scrna option, if not this script cannot be used."
-                )
-                """
-                files_to_display.extend(hf.get_all_files_folder(api, file_obj))
-                files_to_display.remove(file)
-                # just print these to see what's going on
-                for f in files_to_display:
-                    print(f"{f.name}\t{f.id}\t{f.is_folder()}")
-                exit()
-                """
+                sub_files = hf.get_all_files_folder(api, file_obj)
+                for f in sub_files:
+                    if f.parent:
+                        parent = api.files.get(id=f.parent)
+                        f.name = f"{parent.name}/{f.name}"
+                        while parent.parent:
+                            parent = api.files.get(id=parent.parent)
+                            if parent.parent is not None:
+                                f.name = f"{parent.name}/{f.name}"
+                    if not f.is_folder():
+                        files_to_display.append(f)
+            else:
+                files_to_display.append(file)
 
             if file_obj.secondary_files is not None:
                 for secondary in file.secondary_files:
