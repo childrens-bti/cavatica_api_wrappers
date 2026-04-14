@@ -83,8 +83,7 @@ def get_task_files(task_file, task_id, profile, debug):
         s = pd.Series(dtype="object")
         s["project"] = task.project
         s["Task id"] = task.id
-        t_name = task.name.replace(" ", "_")
-        s["Task name"] = t_name
+        s["Task name"] = task.name
         s["Task status"] = task.status
         for inp in task.inputs:
             if task.inputs[inp] is not None:
@@ -112,7 +111,8 @@ def get_task_files(task_file, task_id, profile, debug):
     out_spreadsheet = Path(f"task_inputs.xlsx")
     with pd.ExcelWriter(out_spreadsheet) as writer:
         for key, s in series_dict.items():
-            sheet = key.replace(":", "_")
+            # truncate sheet name to 31 characters to avoid Excel errors
+            sheet = key[:31]
             if debug:
                 print(f"Writing task {key} to {out_spreadsheet}")
             s.to_frame(name="value").to_excel(writer, sheet_name=sheet, index=True)
