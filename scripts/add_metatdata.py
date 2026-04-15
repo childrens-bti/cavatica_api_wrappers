@@ -94,6 +94,7 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
         "reference_genome",
         "mean_coverage",
         "project",
+        "adapter_sequencing",
     ]
     man_df = man_df.drop(unneeded_cols, errors='ignore', axis=1).drop_duplicates()
 
