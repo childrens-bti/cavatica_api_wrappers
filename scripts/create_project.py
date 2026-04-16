@@ -31,7 +31,8 @@ def create_project(token, run):
 
     fields = re.split(r"### ", body)
 
-    billing_id = None
+    # default to AWS-BTI-Core
+    billing_id = "9fbf675f-6525-4dff-bf55-778a4528c936"
     project = None
     user_list = None
 
