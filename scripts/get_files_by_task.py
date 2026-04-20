@@ -19,8 +19,8 @@ def get_regular_files(api, all_tasks, debug=False):
     Returns:
     - list of file objects
     """
+    files_to_display = []
     for task in all_tasks:
-        files_to_display = []
         initial_files = []
         initial_files = check_and_get_files(task)
 
