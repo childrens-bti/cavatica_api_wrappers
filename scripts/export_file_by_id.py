@@ -68,8 +68,12 @@ def export_file_ids(file_ids, profile, volume, location, run):
     file_id_index = None
     file_name_index = None
     file_location_dict = {}
+    line_count = 0
     with open(file_ids, "r") as f:
         for line in f:
+            line_count += 1
+            if line_count % 1000 == 0:
+                print(f"Processing line {line_count}")
             line_split = line.strip().split("\t")
             if "file_id" in line_split:
                 # get the index of the file_id column
@@ -94,27 +98,29 @@ def export_file_ids(file_ids, profile, volume, location, run):
                     print(f"Could not find file {file_id}: {e}")
 
     # loop through files and add any secondary files
+    print("Finding exportable files")
     exportable_files = []
+    unique_count = 0
     for loc in file_location_dict:
         unique_files = []
         for file in file_location_dict[loc]:
-
+            unique_count += 1
+            if unique_count % 1000 == 0:
+                print(f"Checking exportable files {unique_count}")
             # check that the file is exportable
-            if check_exportable(file):
-                exportable_files.append(file)
+            if check_exportable(file) and file not in unique_files:
+                unique_files.append(file)
 
             if file.secondary_files is not None:
                 for secondary in file.secondary_files:
-                    if check_exportable(secondary):
+                    if check_exportable(secondary) and secondary not in unique_files:
                         files_to_export += 1
-                        file_location_dict[loc].append(secondary)
+                        unique_files.append(file)
 
-            if file not in unique_files:
-                unique_files.append(file)
         file_location_dict[loc] = unique_files
 
     if files_to_export > 0:
-        print(f"Exporting {len(exportable_files)} files to {volume}")
+        #print(f"Exporting {len(exportable_files)} files to {volume}")
         # export files to each location
         for loc in file_location_dict:
             print(f"Exporting {len(file_location_dict[loc])} files to {volume}/{loc}")
