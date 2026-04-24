@@ -298,6 +298,36 @@ Options:
   --profile TEXT  Profile to use from credentials file  [default: cavatica]
   -h, --help      Show this message and exit
 ```
+### Bulk Import Files from S3 Using `bulk_import.py`
+
+The `bulk_import.py` script bulk‑imports files from an S3‑backed Cavatica volume into a specified Cavatica project. The script reads a text file containing S3 object keys, batches them in groups of 100 (the API limit), and submits them using the Seven Bridges bulk import API.
+By default, the script runs in `dry‑run` mode and does not submit any imports unless the `--run` flag is provided.
+S3 object keys are file paths within the volume, not AWS credentials or access keys.
+
+Use AWS CLI commands `aws s3api list-objects-v2 --bucket <S3_BUCKET_NAME> --prefix <PREFIX_PATH>/ --profile <AWS_PROFILE> --query 'Contents[].Key' --output text | tr '\t' '\n' | grep -E 'file_pattern' > <OUTPUT_KEYS_FILE>.txt`  to get a list of object keys. 
+
+```bash
+python scripts/bulk_import.py
+Usage: bulk_import.py [OPTIONS]
+
+  Bulk import files from an S3-backed Cavatica volume into a Cavatica project.
+
+Options:
+  --project TEXT
+      Destination Cavatica project (e.g. childrens-bti/cavatica-bulk-import-dev)
+      [required]
+  --volume TEXT
+      Cavatica volume name associated with the S3 bucket
+      [required]
+  --s3-keys-file PATH
+      Text file containing S3 object keys (file paths)
+      [required]
+  --profile TEXT
+      Profile to use from credentials file
+      [default: cavatica]
+  --run
+  -h, --help Show this message and exit.
+  ```
 
 ## Running Unit tests
 

@@ -7,7 +7,7 @@ CHUNK_SIZE = 100  # API allows up to 100 import items per call
 
 
 def load_s3_keys(file_path):
-    """Read S3 keys from a text file, one per line."""
+    """Read S3 key paths/objects from a text file, one per line."""
     with open(file_path) as f:
         return [line.strip() for line in f if line.strip()]
 
@@ -18,10 +18,10 @@ def chunk_list(items, size):
         yield items[i : i + size]
 
 
-def build_import_item(volume, s3_key, project):
+def build_import_item(volume, s3_key_object, project):
     return {
         "volume": volume,
-        "location": s3_key,
+        "location": s3_key_object,
         "project": project,
     }
 
@@ -30,22 +30,27 @@ def build_import_item(volume, s3_key, project):
 @click.option(
     "--project",
     required=True,
-    help="Destination Cavatica project, for example: username/my-project",
+    help="Destination Cavatica project, for example: childrens-bti/cavatica-bulk-import-dev",
 )
 @click.option(
-    "--volume", required=True, help="Cavatica volume ID connected to your S3 bucket"
+    "--volume",
+    required=True,
+    help="Cavatica volume name associated with your S3 bucket",
 )
 @click.option(
     "--s3-keys-file",
+    "s3_keys_file",
     required=True,
     type=click.Path(exists=True),
-    help="Text file with one S3 key per line",
+    help=(
+        "Text file containing S3 object keys (file paths), one per line. This is NOT an AWS authentication/access key , use S3 object paths (e.g. path/within/volume/file.raw)."
+    ),
 )
 @click.option(
     "--profile",
     default="cavatica",
     show_default=True,
-    help="Credentials profile to use",
+    help="Credentials profile to use e.g. cavatica or turbo",
 )
 @click.option(
     "--run",
