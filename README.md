@@ -304,7 +304,9 @@ The `bulk_import.py` script bulk‑imports files from an S3‑backed Cavatica vo
 By default, the script runs in `dry‑run` mode and does not submit any imports unless the `--run` flag is provided.
 S3 object keys are file paths within the volume, not AWS credentials or access keys.
 
-Use AWS CLI commands `aws s3api list-objects-v2 --bucket <S3_BUCKET_NAME> --prefix <PREFIX_PATH>/ --profile <AWS_PROFILE> --query 'Contents[].Key' --output text | tr '\t' '\n' | grep -E 'file_pattern' > <OUTPUT_KEYS_FILE>.txt`  to get a list of object keys. 
+Example AWS CLI command:
+```bash
+aws s3api list-objects-v2 --bucket <S3_BUCKET_NAME> --prefix <PREFIX_PATH>/ --profile <AWS_PROFILE> --query 'Contents[].Key' --output text | tr '\t' '\n' | grep -E 'file_pattern' > <OUTPUT_KEYS_FILE>.txt`  to get a list of object keys. 
 
 ```bash
 python scripts/bulk_import.py
