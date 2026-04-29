@@ -42,7 +42,7 @@ fi
 aws s3api list-objects-v2 --output text --bucket $AWS_BUCKET_NAME --query 'Contents[].Key' | tr '\t' '\n' | grep "$(cut -f 6 ${MANIFEST_FILE})" | grep -v ".md5$" > keys_file.txt
 
 # run the import script
-python ${SCRIPT_DIR}/import_from_manifest.py --project $PROJECT_ID --volume $VOLUME_NAME --s3-keys-file /keys_file.txt --profile $CAVATICA_PROFILE
+python ${SCRIPT_DIR}/bulk_import.py --project $PROJECT_ID --volume $VOLUME_NAME --s3-keys-file keys_file.txt --profile $CAVATICA_PROFILE --run
 
-# remove the input file???
-#rm ${SCRIPT_DIR}/keys_file.txt
+# remove the keys_file
+rm keys_file.txt
