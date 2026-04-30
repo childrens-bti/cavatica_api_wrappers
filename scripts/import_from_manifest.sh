@@ -16,9 +16,7 @@
 #   -p <project_id>: The ID of the Cavatica project to import into (in form username/project_name).
 #   -v <volume_name>: The name of the volume in Cavatica import from (in form username/volume_name).
 
-set -euo pipefail
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
 
 # make options
 while getopts "a:c:m:p:v:" opt; do
@@ -39,7 +37,14 @@ if [[ -z "$AWS_BUCKET_NAME" || -z "$PROJECT_ID" || -z "$MANIFEST_FILE" || -z "$C
 fi
 
 # make a file with the aws keys to import
-aws s3api list-objects-v2 --output text --bucket $AWS_BUCKET_NAME --query 'Contents[].Key' | tr '\t' '\n' | grep "$(cut -f 6 ${MANIFEST_FILE})" | grep -v ".md5$" > keys_file.txt
+manifest_keys_pattern=$(cut -f 6 "$MANIFEST_FILE")
+aws s3api list-objects-v2 --output text --bucket "$AWS_BUCKET_NAME" --query 'Contents[].Key' | tr '\t' '\n' | grep "$manifest_keys_pattern" | grep -v ".md5$" > keys_file.txt
+
+found_keys=$(wc -l < keys_file.txt | tr -d ' ')
+if [[ "$found_keys" -eq 0 ]]; then
+  echo "No matching keys found in S3 bucket. Please check the manifest file and the AWS bucket." >&2
+  exit 1
+fi
 
 # run the import script
 python ${SCRIPT_DIR}/bulk_import.py --project $PROJECT_ID --volume $VOLUME_NAME --s3-keys-file keys_file.txt --profile $CAVATICA_PROFILE --run
