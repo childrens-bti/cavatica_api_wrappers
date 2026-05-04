@@ -340,3 +340,33 @@ Options:
 ```bash
 python -m unittest discover -s scripts
 ```
+
+## Import Files from a Manifest
+
+Use `scripts/import_from_manifest.sh` to import files listed in a manifest into a Cavatica project via a configured Cavatica volume.
+
+Requirements:
+- AWS CLI configured with access to the source S3 bucket
+- A valid Cavatica profile (for example, `cavatica`)
+- A reviewed manifest file where column 6 contains the key pattern(s) to match
+- A destination Cavatica project and import volume you can copy from
+
+```bash
+bash scripts/import_from_manifest.sh \
+  -a <aws_bucket_name> \
+  -c <cavatica_profile> \
+  -m <manifest_file> \
+  -p <project_id> \
+  -v <volume_name>
+```
+
+Example:
+
+```bash
+bash scripts/import_from_manifest.sh \
+  -a my-source-bucket \
+  -c cavatica \
+  -m manifests/import_manifest.tsv \
+  -p username/my-project \
+  -v username/my-volume
+```
