@@ -1,6 +1,9 @@
 #!/bin/bash
 
 # This script imports data from a manifest file into a Cavatica project.
+# The script only imports files from AWS and doesn't work on DRS files
+# or files that are on a different cloud platform.
+# It also doesn't copy files from one Cavatica project to another.
 # It assumes:
 # the manifest has already been reviewed,
 # the project exists,
