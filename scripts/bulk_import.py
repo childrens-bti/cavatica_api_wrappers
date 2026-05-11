@@ -71,7 +71,7 @@ def bulk_import(project, volume, s3_keys_file, profile, run):
     all_items = [build_import_item(volume, key, project) for key in s3_keys]
     chunks = list(chunk_list(all_items, CHUNK_SIZE))
 
-    click.echo(f"Loaded {len(s3_keys)} S3 key(s).")
+    click.echo(f"Loading {len(s3_keys)} S3 key(s).")
     click.echo(f"Prepared {len(chunks)} chunk(s).")
 
     if not run:
