@@ -36,7 +36,7 @@ def report_tasks(profile):
     # read config file
     api = hf.parse_config(profile)
 
-    compledted_tasks = []
+    completed_tasks = []
     failed_tasks = []
     projects = []
 
@@ -63,14 +63,14 @@ def report_tasks(profile):
             print(f"Error getting task {task.id}: {e}")
             continue
         if task.status.upper() == "COMPLETED":
-            compledted_tasks.append(task.id)
+            completed_tasks.append(task.id)
         elif task.status.upper() == "FAILED":
             failed_tasks.append(task.id)
         if task.project not in projects:
             projects.append(task.project)
 
     title = "Cavatica Task Monitoring"
-    short_message = f"completed: {len(compledted_tasks)} tasks, failed: {len(failed_tasks)} tasks in {len(projects)} projects"
+    short_message = f"completed: {len(completed_tasks)} tasks, failed: {len(failed_tasks)} tasks in {len(projects)} projects"
     print(f"{title}: {short_message}")
 
     notify(title, short_message)
@@ -80,10 +80,10 @@ def report_tasks(profile):
     report_path = home / "task_report.json"
     report = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
-        "completed_task_count": len(compledted_tasks),
+        "completed_task_count": len(completed_tasks),
         "failed_task_count": len(failed_tasks),
         "projects": projects,
-        "completed_task_ids": compledted_tasks,
+        "completed_task_ids": completed_tasks,
         "failed_task_ids": failed_tasks,
     }
     with report_path.open("w", encoding="utf-8") as f:
