@@ -36,12 +36,12 @@ def get_all_files_folder(api, folder) -> list:
     # check if any of the files are a folder
     for file in all_files:
         if file.is_folder() == True:
-            recieved = LIMIT
+            received = LIMIT
             folder_files = file.list_files(limit=LIMIT)
             all_files.extend(folder_files)
-            while recieved < folder_files.total:
-                folder_files = file.list_files(limit=LIMIT, offset=recieved)
-                recieved += LIMIT
+            while received < folder_files.total:
+                folder_files = file.list_files(limit=LIMIT, offset=received)
+                received += LIMIT
 
     return all_files
 
@@ -61,30 +61,30 @@ def get_all_files(api, project) -> list:
     project_obj = api.projects.get(id=project)
 
     # query project for all files using pagination
-    recieved = LIMIT
+    received = LIMIT
     project_files = project_obj.get_files(limit=LIMIT)
     all_files.extend(project_files)
     keep_going = True
     last_id = all_files[-1].id
-    # while recieved < project_files.total:
+    # while received < project_files.total:
     while keep_going:
-        project_files = project_obj.get_files(limit=LIMIT, offset=recieved)
+        project_files = project_obj.get_files(limit=LIMIT, offset=received)
         all_files.extend(project_files)
         if all_files[-1].id == last_id:
             keep_going = False
         else:
             last_id = all_files[-1].id
-        recieved += LIMIT
+        received += LIMIT
 
     # check if any of the files are a folder
     for file in all_files:
         if file.is_folder() == True:
-            recieved = LIMIT
+            received = LIMIT
             folder_files = file.list_files(limit=LIMIT)
             all_files.extend(folder_files)
-            while recieved < folder_files.total:
-                folder_files = file.list_files(limit=LIMIT, offset=recieved)
-                recieved += LIMIT
+            while received < folder_files.total:
+                folder_files = file.list_files(limit=LIMIT, offset=received)
+                received += LIMIT
 
     return all_files
 
@@ -107,16 +107,16 @@ def find_file_in_folder(folder, search_name, result_list=None):
             result_list.append(file)
         elif file.is_folder() == True:
             # get all files in the folder using pagination
-            recieved = LIMIT
+            received = LIMIT
             new_folder = file.list_files(limit=LIMIT)
             find_file_in_folder(new_folder, search_name, result_list)
-            while recieved < new_folder.total:
+            while received < new_folder.total:
                 find_file_in_folder(
-                    file.list_files(limit=LIMIT, offset=recieved),
+                    file.list_files(limit=LIMIT, offset=received),
                     search_name,
                     result_list,
                 )
-                recieved += LIMIT
+                received += LIMIT
 
     return result_list
 
@@ -147,13 +147,13 @@ def get_file_obj(api, project, file_name) -> str:
         project_obj = api.projects.get(id=project)
 
         # query project for all files using pagination
-        recieved = LIMIT
+        received = LIMIT
         project_files = project_obj.get_files(limit=LIMIT)
         found_files = find_file_in_folder(project_files, file_name)
-        while recieved < project_files.total:
-            project_files = project_obj.get_files(limit=LIMIT, offset=recieved)
+        while received < project_files.total:
+            project_files = project_obj.get_files(limit=LIMIT, offset=received)
             found_files.extend(find_file_in_folder(project_files, file_name))
-            recieved += LIMIT
+            received += LIMIT
 
         if len(found_files) == 0:
             raise FileNotFoundError(
@@ -181,13 +181,30 @@ def get_all_tasks(api, project):
     Get all tasks in a project.
     """
     tasks = []
-    recieved = LIMIT
+    received = LIMIT
     project_tasks = api.tasks.query(project=project, limit=LIMIT)
     tasks.extend(project_tasks)
-    while recieved < project_tasks.total:
-        project_tasks = api.tasks.query(project=project, limit=LIMIT, offset=recieved)
+    while received < project_tasks.total:
+        project_tasks = api.tasks.query(project=project, limit=LIMIT, offset=received)
         tasks.extend(project_tasks)
-        recieved += LIMIT
+        received += LIMIT
+
+    return tasks
+
+
+def query_tasks(api, **kwargs):
+    """
+    Query tasks available to user with kwargs as query parameters
+    for example: project, status, created_from, etc.
+    """
+    tasks = []
+    received = LIMIT
+    project_tasks = api.tasks.query(limit=LIMIT, **kwargs)
+    tasks.extend(project_tasks)
+    while received < project_tasks.total:
+        project_tasks = api.tasks.query(limit=LIMIT, offset=received, **kwargs)
+        tasks.extend(project_tasks)
+        received += LIMIT
 
     return tasks
 
@@ -198,14 +215,14 @@ def get_all_projects(api):
     """
     # print("Finding projects")
     projects = []
-    recieved = LIMIT
+    received = LIMIT
     project_page = api.projects.query(limit=LIMIT)
     projects.extend(project_page)
-    while recieved < project_page.total:
-        # print(f"Looking for more projects, found {recieved}")
-        project_page = api.projects.query(limit=LIMIT, offset=recieved)
+    while received < project_page.total:
+        # print(f"Looking for more projects, found {received}")
+        project_page = api.projects.query(limit=LIMIT, offset=received)
         projects.extend(project_page)
-        recieved += LIMIT
+        received += LIMIT
 
     return projects
 
@@ -216,14 +233,14 @@ def get_all_billing(api):
     """
     print("Finding billing groups")
     billings = []
-    recieved = LIMIT
+    received = LIMIT
     billing_page = api.billing_groups.query(limit=LIMIT)
     billings.extend(billing_page)
-    while recieved < billing_page.total:
-        print(f"Looking for more projects, found {recieved}")
-        billing_page = api.billing_groups.query(limit=LIMIT, offset=recieved)
+    while received < billing_page.total:
+        print(f"Looking for more projects, found {received}")
+        billing_page = api.billing_groups.query(limit=LIMIT, offset=received)
         billings.extend(billing_page)
-        recieved += LIMIT
+        received += LIMIT
 
     return billings
 
