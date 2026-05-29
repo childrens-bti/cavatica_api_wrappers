@@ -192,6 +192,23 @@ def get_all_tasks(api, project):
     return tasks
 
 
+def query_tasks(api, **kwargs):
+    """
+    Query tasks available to user with kwargs as query parameters
+    for example: project, status, created_from, etc.
+    """
+    tasks = []
+    recieved = LIMIT
+    project_tasks = api.tasks.query(limit=LIMIT, **kwargs)
+    tasks.extend(project_tasks)
+    while recieved < project_tasks.total:
+        project_tasks = api.tasks.query(limit=LIMIT, offset=recieved, **kwargs)
+        tasks.extend(project_tasks)
+        recieved += LIMIT
+
+    return tasks
+
+
 def get_all_projects(api):
     """
     Get all projects the user has access to.
