@@ -205,7 +205,7 @@ crontab -e
 ```
 
 Replace `/path/to/cavatica_api_wrappers` with the full path of this repo.
-Replace `/path/to/conda` with the output from `which conda`.
+Replace `/path/to/conda` with the output from `whereis conda`.
 Replace `my_env` with the name of the conda env used to run the scripts in this repo.
 
 ## Export Files from Cavatica
