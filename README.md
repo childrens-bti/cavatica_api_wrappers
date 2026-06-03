@@ -1,4 +1,5 @@
 <p align="left">
+
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 </p>
 
@@ -11,9 +12,11 @@ This repository contains Python wrapper scripts using the [Seven Bridges Python 
 ## Installing and using this repo.
 
 To use the scripts contained within this repo:
+
 1. Clone this repo locally
 2. Create config file (see below)
 3. Install required Python libraries
+
 ```python
 pip install -r requirements.txt
 ```
@@ -64,8 +67,6 @@ Usage: create_task_from_wf_cwl.py [OPTIONS]
 Options:
   --profile TEXT            Profile to use from credentials file  [default:
                             cavatica]
-  --project TEXT            Project the app is in, first two '/'s after 'u/'
-                            in Cavatica url
   --app TEXT                App name, appid field on Cavaita app page
   -w, --workflow_file PATH  Path to workflow file
   --out TEXT                Output file
@@ -80,6 +81,7 @@ Options:
 The options file is a tsv file with column names corresponding to workflow inputs. If an input is found in the options file, the values in that column will be used when creating draft tasks and will override any default or suggested values for that input. For example, if a workflow has an input `reference_fasta`, the values listed in the `reference_fasta` column in the input file will be used and the default value in the workflow will not.
 
 Example options file
+
 ```bash
 $ cat override.txt
 vcf_file    output_basename
@@ -89,7 +91,7 @@ BS_9876.vcf BS_9876_example_workflow_run
 
 ## Launching draft tasks
 
-The Sevenbridges API separates creating tasks from launching them. Tasks are first created as drafts allowing for you to inspect them before running. The `run_tasks.py` script launches draft tasks using the draft task id or a file containing a list of task ids.
+The Sevenbridges API separates creating tasks from launching them. Tasks are first created as drafts allowing for you to inspect them before running. The `run_tasks.py` script launches draft tasks using the draft task id or a file containing a list of task ids. The script will launch a limited number of tasks, wait for those tasks to finsih, output the succesful task ids to an output file and failed tasks to a different file, then launch the next set of tasks. This script should be run on a system that will allow the script to be active the entire time tasks are running. If a batch of tasks does not finish after a set amount of time, this script will stop running and you will have to manually inspect these tasks and determine if they need to be aborted or not.
 
 ```bash
 $ python run_tasks.py -h
@@ -100,12 +102,20 @@ Usage: run_tasks.py [OPTIONS]
   This will only launch draft tasks and cannot create tasks.
 
 Options:
-  --task_file TEXT  File with task ids
-  --task_id TEXT    Task id
-  --profile TEXT    Profile to use from credentials file  [default: cavatica]
-  --run             Run the task
-  -h, --help        Show this message and exit.
+  --task_file TEXT        File with task ids
+  --task_id TEXT          Task id
+  --profile TEXT          Profile to use from credentials file  [default:
+                          cavatica]
+  --limit INTEGER         Limit number of tasks to run at once, set to -1 to
+                          run all task (not recommended)  [default: 50]
+  --wait INTEGER          Time in minutes to wait between checking task status
+                          [default: 60]
+  --max_checks INTEGER    Maximum number of status checks to perform
+                          [default: 12]
+  --output_basename TEXT  Base name for output files  [default: task_status]
+  -h, --help              Show this message and exit.
 ```
+
 
 ## Adding metadata from manifest file
 
@@ -160,75 +170,41 @@ Options:
   -h, --help        Show this message and exit.
 ```
 
-## ***DEPRECATED*** Creating API wrapper from CWL workflows
+## Monitoring Task Completions
 
-Warning: this is very experimental and should be manually verified before using!
+Use `monitor_tasks.py` to report recently finished tasks (completed/failed), send a macOS notification, and write a JSON summary to `~/task_report.json`.
 
-The `create_task_script_from_wf_cwl.py` script parses a CWL workflow and creates a python script that uses the Sevenbridges API to create draft tasks. The generated script will have command line arguments for each workflow input, the project the workflow is uploaded to, the workflow app id in the project, and an option for a "override file" which is described below. When the generated script is run, it will create draft tasks at the endpoint provided by your profile and will output a file containing the task ids of the created draft tasks. Neither the `create_task_script_from_wf_cwl.py` script nor the scripts that it generates will load the workflow to the project. That must be done separately.
+To make the notification persistent, open "System Settings", open "Notifications", scroll down to "Script Editor", and change the "Alert Style" radio button to "Persistent".
 
-### Generating a Task Creation Script
-
-1. Clone the repo with the input workflow
-2. Run the generation script
-```bash
-$ python create_task_script_from_wf_cwl.py -w {workflow_path} > {generated_script}.py
-```
-3. If the script will be added to a repo for later use, it is strongly recommended to format the script using [black](https://github.com/psf/black).
-
-### Using the generated script to create draft task(s)
-
-1. Ensure the workflow and any input files exist within the project you will be running the workflow in.
-2. Copy the app id from the project -> apps -> workflow page.
-3. (Optional) create the override file.
-4. Run the generated script. If the workflow has default values, those will be used when creating the tasks.
-```bash
-$ python {generated_script}.py --project {project} --app {appid} --task_file {task_file} {any additional workflow arguments and / or override file}
-```
-
-To get a full list of inputs, run:
-```bash
-$ python {generated_script}.py --help
-```
-
-#### The Override File
-
-The override file is a tsv file with column names corresponding to workflow inputs. If an input is found in the override file, the values in that column will be used when creating draft tasks and will override the command line argument. For example, if a workflow has an input `vcf_file`, the values listed in the `vcf_file` column in the override file will be used and the command line argument `--vcf_file` will be ignored.
-
-
-Example override file
-```bash
-$ cat override.txt
-vcf_file    output_basename
-BS_1234.vcf BS_1234_example_workflow_run
-BS_9876.vcf BS_9876_example_workflow_run
-```
-
-## Launching draft tasks
-
-The Sevenbridges API separates creating tasks from launching them. Tasks are first created as drafts allowing for you to inspect them before running. The `run_tasks.py` script launches draft tasks using the draft task id or a file containing a list of task ids. The script will launch a limited number of tasks, wait for those tasks to finsih, output the succesful task ids to an output file and failed tasks to a different file, then launch the next set of tasks. This script should be run on a system that will allow the script to be active the entire time tasks are running. If a batch of tasks does not finish after a set amount of time, this script will stop running and you will have to manually inspect these tasks and determine if they need to be aborted or not.
+### Run Manually
 
 ```bash
-$ python run_tasks.py -h
-Usage: run_tasks.py [OPTIONS]
-
-  Launch a single task using the task id or launch multiple tasks getting the
-  task ids from input file. Task file is a file with task ids one per line.
-  This will only launch draft tasks and cannot create tasks.
-
-Options:
-  --task_file TEXT        File with task ids
-  --task_id TEXT          Task id
-  --profile TEXT          Profile to use from credentials file  [default:
-                          cavatica]
-  --limit INTEGER         Limit number of tasks to run at once, set to -1 to
-                          run all task (not recommended)  [default: 50]
-  --wait INTEGER          Time in minutes to wait between checking task status
-                          [default: 60]
-  --max_checks INTEGER    Maximum number of status checks to perform
-                          [default: 12]
-  --output_basename TEXT  Base name for output files  [default: task_status]
-  -h, --help              Show this message and exit.
+python scripts/monitor_tasks.py --profile cavatica
 ```
+
+To view all options:
+
+```bash
+python scripts/monitor_tasks.py -h
+```
+
+### Run Hourly with Cron During Working Hours
+
+1. Edit your crontab:
+
+```bash
+crontab -e
+```
+
+2. Add this line to run at the top of each hour from 8 AM to 5 PM, Monday-Friday:
+
+```cron
+0 8-17 * * 1-5 cd /path/to/cavatica_api_wrappers && /path/to/conda run -n my_env python scripts/monitor_tasks.py --profile cavatica >> /tmp/monitor_tasks.log 2>&1
+```
+
+Replace `/path/to/cavatica_api_wrappers` with the full path of this repo.
+Replace `/path/to/conda` with the output from `whereis conda`.
+Replace `my_env` with the name of the conda env used to run the scripts in this repo.
 
 ## Export Files from Cavatica
 

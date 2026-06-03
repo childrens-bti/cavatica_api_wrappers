@@ -104,9 +104,6 @@ def parse_workflow_file(workflow_file):
     default="cavatica",
     show_default=True,
 )
-@click.option(
-    "--project", help="Project the app is in, first two '/'s after 'u/' in Cavatica url"
-)
 @click.option("--app", help="App name, appid field on Cavaita app page")
 @click.option(
     "-w",
@@ -114,7 +111,7 @@ def parse_workflow_file(workflow_file):
     type=click.Path(exists=True),
     help="Path to workflow file",
 )
-@click.option("--out", help="Output file", default="new_task_ids.txt")
+@click.option("--out", help="Output files basename", default="new")
 @click.option(
     "--skip_name_check",
     help="Skip checking if app name and workflow file name match",
@@ -126,9 +123,7 @@ def parse_workflow_file(workflow_file):
     type=click.Path(exists=True),
     help="Path to options file",
 )
-def create_task_script(
-    profile, project, app, workflow_file, out, skip_name_check, options_file
-):
+def create_task_script(profile, app, workflow_file, out, skip_name_check, options_file):
     """
     Create a draft task from a workflow cwl and file with task options.
     """
@@ -137,8 +132,11 @@ def create_task_script(
 
     # get api
     api = hf.parse_config(profile)
+    username = api.users.me().username
 
-    project = hf.parse_project(project)
+    project_id = "/".join(app.split("/")[:2])
+    print(project_id)
+    project = hf.parse_project(project_id)
 
     web_app_name = app.split("/")[-1]
     file_app_name = workflow_file.split("/")[-1].split(".")[0]
@@ -152,13 +150,23 @@ def create_task_script(
 
     # parse options file and create tasks
     task_ids = []
+    file_ids = {}
+    out_lines = []
+    new_cols = ["task_id", "created_by"]
+    base_names = {}
     with open(options_file, "r") as f:
         line_num = 0
         task_options = []
         for line in f:
             if line_num == 0:
                 # parse header
-                task_options = line.strip().split("\t")
+                head_line = line.strip()
+                task_options = head_line.split("\t")
+                for opt in task_options:
+                    if "output_basename" in opt:
+                        base_names[opt] = {"out_name": f"final_{opt}", "value": None}
+                head_line = f"{head_line}\t{"\t".join(new_cols)}\t{"\t".join([base_names[opt]["out_name"] for opt in base_names])}"
+                out_lines.append(head_line)
             else:
                 # create new task reading inputs and converting to expected type
                 task_inputs = {}
@@ -173,11 +181,16 @@ def create_task_script(
                         if option not in array_inputs:
                             cur_input = line_split[task_options.index(option)]
                             if workflow_inputs[option] == "file":
-                                task_inputs[option] = hf.get_file_obj(
-                                    api, project, cur_input
-                                )
+                                if cur_input in file_ids:
+                                    task_inputs[option] = file_ids[cur_input]
+                                else:
+                                    my_id = hf.get_file_obj(api, project, cur_input)
+                                    task_inputs[option] = my_id
+                                    file_ids[cur_input] = my_id
                             elif workflow_inputs[option] == "bool":
-                                task_inputs[option] = cur_input.lower() == "true"
+                                task_inputs[option] = (
+                                    cur_input.strip().lower() == "true"
+                                )
                             elif workflow_inputs[option] == "int":
                                 task_inputs[option] = int(cur_input)
                             elif workflow_inputs[option] == "float":
@@ -190,12 +203,20 @@ def create_task_script(
                             ].split(",")
                             for i in range(len(task_inputs[option])):
                                 if workflow_inputs[option] == "file":
-                                    task_inputs[option][i] = hf.get_file_obj(
-                                        api, project, task_inputs[option][i]
-                                    )
+                                    if task_inputs[option][i] in file_ids:
+                                        file_obj = api.files.get(
+                                            file_ids[task_inputs[option][i]]
+                                        )
+                                        task_inputs[option][i] = file_obj
+                                    else:
+                                        my_id = hf.get_file_obj(
+                                            api, project, task_inputs[option][i]
+                                        )
+                                        task_inputs[option][i] = my_id.id
+                                        file_ids[task_inputs[option][i]] = my_id.id
                                 elif workflow_inputs[option] == "bool":
                                     task_inputs[option][i] = (
-                                        task_inputs[option][i].lower() == "true"
+                                        task_inputs[option][i].strip().lower() == "true"
                                     )
                                 elif workflow_inputs[option] == "int":
                                     task_inputs[option][i] = int(task_inputs[option][i])
@@ -218,22 +239,39 @@ def create_task_script(
                 )
 
                 # update task now that we have task id
-                if "output_basename" in new_task.inputs:
-                    if new_task.inputs["output_basename"] is None:
-                        new_task.inputs["output_basename"] = new_task.id
-                    else:
-                        new_task.inputs["output_basename"] = (f"{new_task.inputs["output_basename"]}_{new_task.id}")
+                if base_names:
+                    for base in base_names:
+                        if new_task.inputs[base] is not None:
+                            base_names[base][
+                                "value"
+                            ] = f"{new_task.inputs[base]}_{new_task.id}"
+                            new_task.inputs[base] = base_names[base]["value"]
+                        else:
+                            base_names[base]["value"] = new_task.id
+                            new_task.inputs[base] = base_names[base]["value"]
+
                     new_task.save()
 
                 print(f"{new_task.name}, {new_task.status}, {new_task.id}")
                 task_ids.append(new_task.id)
+                out_lines.append(
+                    f"{line.strip()}\t{new_task.id}\t{username}\t{"\t".join([base_names[opt]["value"] for opt in base_names])}"
+                )
 
             line_num += 1
 
     # output task ids to file
-    with open(out, "w") as f:
+    task_file = f"{out}_task_ids.txt"
+    with open(task_file, "w") as f:
         for task_id in task_ids:
             f.write(f"{task_id}\n")
+
+    # rewrite options file with new columns for
+    # task id, creator, and updated output basenames
+    options_out_file = f"{out}_options.tsv"
+    with open(options_out_file, "w") as f:
+        for line in out_lines:
+            f.write(f"{line}\n")
 
 
 if __name__ == "__main__":
