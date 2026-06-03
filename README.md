@@ -67,8 +67,6 @@ Usage: create_task_from_wf_cwl.py [OPTIONS]
 Options:
   --profile TEXT            Profile to use from credentials file  [default:
                             cavatica]
-  --project TEXT            Project the app is in, first two '/'s after 'u/'
-                            in Cavatica url
   --app TEXT                App name, appid field on Cavaita app page
   -w, --workflow_file PATH  Path to workflow file
   --out TEXT                Output file
