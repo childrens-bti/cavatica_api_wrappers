@@ -67,8 +67,6 @@ Usage: create_task_from_wf_cwl.py [OPTIONS]
 Options:
   --profile TEXT            Profile to use from credentials file  [default:
                             cavatica]
-  --project TEXT            Project the app is in, first two '/'s after 'u/'
-                            in Cavatica url
   --app TEXT                App name, appid field on Cavaita app page
   -w, --workflow_file PATH  Path to workflow file
   --out TEXT                Output file
@@ -205,7 +203,7 @@ crontab -e
 ```
 
 Replace `/path/to/cavatica_api_wrappers` with the full path of this repo.
-Replace `/path/to/conda` with the output from `which conda`.
+Replace `/path/to/conda` with the output from `whereis conda`.
 Replace `my_env` with the name of the conda env used to run the scripts in this repo.
 
 ## Export Files from Cavatica
