@@ -123,9 +123,7 @@ def parse_workflow_file(workflow_file):
     type=click.Path(exists=True),
     help="Path to options file",
 )
-def create_task_script(
-    profile, app, workflow_file, out, skip_name_check, options_file
-):
+def create_task_script(profile, app, workflow_file, out, skip_name_check, options_file):
     """
     Create a draft task from a workflow cwl and file with task options.
     """
@@ -190,7 +188,9 @@ def create_task_script(
                                     task_inputs[option] = my_id
                                     file_ids[cur_input] = my_id
                             elif workflow_inputs[option] == "bool":
-                                task_inputs[option] = cur_input.lower() == "true"
+                                task_inputs[option] = (
+                                    cur_input.strip().lower() == "true"
+                                )
                             elif workflow_inputs[option] == "int":
                                 task_inputs[option] = int(cur_input)
                             elif workflow_inputs[option] == "float":
@@ -204,7 +204,9 @@ def create_task_script(
                             for i in range(len(task_inputs[option])):
                                 if workflow_inputs[option] == "file":
                                     if task_inputs[option][i] in file_ids:
-                                        file_obj = api.files.get(file_ids[task_inputs[option][i]])
+                                        file_obj = api.files.get(
+                                            file_ids[task_inputs[option][i]]
+                                        )
                                         task_inputs[option][i] = file_obj
                                     else:
                                         my_id = hf.get_file_obj(
@@ -214,7 +216,7 @@ def create_task_script(
                                         file_ids[task_inputs[option][i]] = my_id.id
                                 elif workflow_inputs[option] == "bool":
                                     task_inputs[option][i] = (
-                                        task_inputs[option][i].lower() == "true"
+                                        task_inputs[option][i].strip().lower() == "true"
                                     )
                                 elif workflow_inputs[option] == "int":
                                     task_inputs[option][i] = int(task_inputs[option][i])
