@@ -4,7 +4,7 @@ import subprocess
 import json
 import click
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sevenbridges import Api
 from helper_functions import helper_functions as hf
 
@@ -40,34 +40,33 @@ def report_tasks(profile):
     failed_tasks = []
     projects = []
 
-    last_hour = (datetime.now().astimezone() - timedelta(hours=1)).isoformat(
-        timespec="seconds"
-    )
-    last_day = (datetime.now().astimezone() - timedelta(hours=24)).isoformat(
-        timespec="seconds"
-    )
+    now = datetime.now(timezone.utc)
 
-    # if now is during business hours (9am-6pm)
-    # report on tasks from the last hour
-    # otherwise report on tasks from the last 24 hours
     if 9 <= datetime.now().hour < 18:
-        end_time = last_hour
+        ended_from = now - timedelta(hours=1)
     else:
-        end_time = last_day
+        ended_from = now - timedelta(hours=24)
 
-    all_tasks = hf.query_tasks(api, ended_from=end_time)
+    ended_from_iso = ended_from.isoformat(timespec="seconds")
+
+    all_tasks = hf.query_tasks(api, ended_from=ended_from_iso)
+
     for task in all_tasks:
-        try:
-            task = api.tasks.get(task.id)
-        except Exception as e:
-            print(f"Error getting task {task.id}: {e}")
+        task = api.tasks.get(task.id)
+
+        if task.end_time is None:
             continue
+
+        #check time again since I don't think API is working as expected
+        if task.end_time.astimezone(timezone.utc) < ended_from:
+            continue
+
         if task.status.upper() == "COMPLETED":
-            completed_tasks.append(task.id)
+            completed_tasks.append(f"{task.id}|{task.end_time}")
         elif task.status.upper() == "FAILED":
             failed_tasks.append(task.id)
         if task.project not in projects:
-            projects.append(task.project)
+                projects.append(task.project)
 
     title = "Cavatica Task Monitoring"
     short_message = f"completed: {len(completed_tasks)} tasks, failed: {len(failed_tasks)} tasks in {len(projects)} projects"
