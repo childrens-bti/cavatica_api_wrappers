@@ -6,7 +6,7 @@ from sevenbridges import Api
 from sevenbridges.http.error_handlers import rate_limit_sleeper, maintenance_sleeper
 
 # set api limit for pagination
-LIMIT = 50
+LIMIT = 100
 
 
 def get_all_files_folder(api, folder) -> list:
