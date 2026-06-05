@@ -37,4 +37,10 @@ jobs:
         run: |
           python scripts/create_project.py \
           --token ${{ secrets.CAVATICA_TOKEN }} \
-          --run 
+          --run
+      - name: Close Issue
+        env:
+          GH_TOKEN: ${{ secrets.MY_REPO_PAT }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue close "$ISSUE_NUMBER" --comment "Deployment finished. Issue closed automatically by CI/CD."
