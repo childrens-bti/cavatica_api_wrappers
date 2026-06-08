@@ -152,7 +152,7 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
     task_ids = []
     file_ids = {}
     out_lines = []
-    new_cols = ["task_id", "created_by"]
+    new_cols = ["app", "task_id", "created_by"]
     base_names = {}
     with open(options_file, "r") as f:
         line_num = 0
@@ -255,7 +255,7 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
                 print(f"{new_task.name}, {new_task.status}, {new_task.id}")
                 task_ids.append(new_task.id)
                 out_lines.append(
-                    f"{line.strip()}\t{new_task.id}\t{username}\t{"\t".join([base_names[opt]["value"] for opt in base_names])}"
+                    f"{line.strip()}\t{new_task.app}\t{new_task.id}\t{username}\t{"\t".join([base_names[opt]["value"] for opt in base_names])}"
                 )
 
             line_num += 1
