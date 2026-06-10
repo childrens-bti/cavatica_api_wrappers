@@ -204,16 +204,13 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
                             for i in range(len(task_inputs[option])):
                                 if workflow_inputs[option] == "file":
                                     if task_inputs[option][i] in file_ids:
-                                        file_obj = api.files.get(
-                                            file_ids[task_inputs[option][i]]
-                                        )
-                                        task_inputs[option][i] = file_obj
+                                        task_inputs[option][i] = file_ids[task_inputs[option][i]]
                                     else:
                                         my_id = hf.get_file_obj(
                                             api, project, task_inputs[option][i]
                                         )
-                                        task_inputs[option][i] = my_id.id
-                                        file_ids[task_inputs[option][i]] = my_id.id
+                                        file_ids[task_inputs[option][i]] = my_id
+                                        task_inputs[option][i] = my_id
                                 elif workflow_inputs[option] == "bool":
                                     task_inputs[option][i] = (
                                         task_inputs[option][i].strip().lower() == "true"
@@ -232,6 +229,8 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
                     task_name = f"{task_name}_{task_inputs["output_basename"]}"
                 else:
                     task_name = f"{task_name}_{line_num}"
+
+                print(task_inputs)
 
                 # call api and store task_id
                 new_task = api.tasks.create(
