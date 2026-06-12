@@ -49,7 +49,14 @@ def get_pattern(source, steps):
                             elif "outputEval" in out["outputBinding"]:
                                 pattern = out["outputBinding"]["outputEval"]
                         elif "outputSource" in out:
+                            print(f"Recursively looking for pattern for source {out['outputSource']}")
                             sub_source, pattern = get_pattern(out["outputSource"], step["run"]["steps"])
+                        elif "type" in out and out["type"] == "stdout":
+                            pattern = "stdout"
+                            if "stdout" in step["run"]:
+                                pattern = step["run"]["stdout"]
+                        elif step["run"]["class"] == "ExpressionTool":
+                            pattern = "expression tool output"
                 patterns.append(pattern)
                 break
 
@@ -72,7 +79,8 @@ def get_pattern(source, steps):
     show_default=True,
 )
 @click.option("--file", required=False, help="File with list of apps to get info for.")
-def get_app(profile, app, file):
+@click.option("--dump_file", help="File to dump full app info to, for debugging.")
+def get_app(profile, app, file, dump_file):
     """Get app information from Seven Bridges."""
 
     # get token and url from credentials file
@@ -108,8 +116,9 @@ def get_app(profile, app, file):
             res = response.json()
 
             # dump the whole app info, for debugging
-            #print(json.dumps(res, indent=4))
-            #exit()
+            if app and dump_file:
+                with open(dump_file, "w") as f:
+                    json.dump(res, f, indent=4)
 
             # parse output results
             note = res["raw"]["sbg:revisionNotes"]
