@@ -49,7 +49,7 @@ def get_pattern(source, steps):
                             elif "outputEval" in out["outputBinding"]:
                                 pattern = out["outputBinding"]["outputEval"]
                         elif "outputSource" in out:
-                            print(f"Recursively looking for pattern for source {out['outputSource']}")
+                            #print(f"Recursively looking for pattern for source {out['outputSource']}")
                             sub_source, pattern = get_pattern(out["outputSource"], step["run"]["steps"])
                         elif "type" in out and out["type"] == "stdout":
                             pattern = "stdout"
@@ -178,6 +178,8 @@ def get_app(profile, app, file, dump_file):
                 elif "outputBinding" in item:
                     # app is probably a task app 
                     pattern = item["outputBinding"]["glob"]
+                if "\n" in pattern:
+                    pattern = pattern.replace("\n", "\\n")
                 outs.append(f"{id}:{my_type}:{source}:{pattern}")
             out_line += f"\t{'|'.join(outs)}"
 
