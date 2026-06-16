@@ -27,7 +27,12 @@ def get_input_type(my_input):
     in_type = None
 
     if isinstance(my_input, list):
-        in_type = "string"
+        #in_type = "string"
+        for inp in my_input:
+            if inp != "null":
+                in_type, array_input = get_input_type(inp)
+                if array_input:
+                    is_array = True
     elif isinstance(my_input, dict):
         # this probably isn't needed nor and might not even be correct for enums...
         if my_input["type"] in ["File", "Directory"]:
@@ -38,6 +43,9 @@ def get_input_type(my_input):
             in_type = "int"
         elif my_input["type"] == "float":
             in_type = "float"
+        elif my_input["type"] == "array":
+            in_type, array_input = get_input_type(my_input["items"])
+            is_array = True
         else:
             in_type = "string"
     else:
@@ -53,6 +61,8 @@ def get_input_type(my_input):
             in_type = "int"
         elif my_input.startswith("float"):
             in_type = "float"
+        elif my_input.startswith("double"):
+            in_type = "double"
         else:
             in_type = "string"
 
@@ -135,7 +145,6 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
     username = api.users.me().username
 
     project_id = "/".join(app.split("/")[:2])
-    print(project_id)
     project = hf.parse_project(project_id)
 
     web_app_name = app.split("/")[-1]
@@ -229,8 +238,6 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
                     task_name = f"{task_name}_{task_inputs["output_basename"]}"
                 else:
                     task_name = f"{task_name}_{line_num}"
-
-                print(task_inputs)
 
                 # call api and store task_id
                 new_task = api.tasks.create(
