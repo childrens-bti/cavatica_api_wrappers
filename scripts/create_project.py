@@ -7,7 +7,8 @@ from sevenbridges import Api
 from sevenbridges.http.error_handlers import rate_limit_sleeper, maintenance_sleeper
 from helper_functions import helper_functions as hf
 
-DEFAULT_USERS = ["sicklera", "harenzaj", "chaodi", "corbettr", "farrow1"]
+ADMIN_USERS = ["sicklera", "harenzaj", "farrow1"]
+REGULAR_USERS = ["chaodi", "corbettr", "ababaei", "raqureshi"]
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
@@ -59,6 +60,9 @@ def create_project(token, run):
         else:
             raise ValueError(f"Unknown field: {key}")
 
+    user_list = user_list + REGULAR_USERS
+    user_list = list(set(user_list))
+
     # create project
     if run:
         print("Creating project")
@@ -69,7 +73,7 @@ def create_project(token, run):
             settings={"use_memoization": True, "allow_network_access": True},
         )
         print("Adding admin users")
-        for user in DEFAULT_USERS:
+        for user in ADMIN_USERS:
             new_member = new_project.add_member(
                 user=user,
                 permissions={
@@ -82,7 +86,7 @@ def create_project(token, run):
         print("Adding regular users")
         if user_list:
             for user in user_list:
-                if user not in DEFAULT_USERS:
+                if user not in ADMIN_USERS:
                     new_member = new_project.add_member(
                         user=user,
                         permissions={
