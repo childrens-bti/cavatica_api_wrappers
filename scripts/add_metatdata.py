@@ -145,13 +145,13 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
 
         if task.status == "COMPLETED":
             # get the sample name from the task
-            sample_name = None
+            task_sample_name = None
             matches = [task.inputs[key] for key in sample_fields if key in task.inputs]
             if len(matches) > 1:
                 print(matches)
                 raise ValueError(f"Expected exactly one match, got {len(matches)}")
             elif len(matches) == 1:
-                sample_name = matches[0]
+                task_sample_name = matches[0]
 
             # get output files from task
             task_files = get_task_files(task)
@@ -165,12 +165,13 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
                     print(f"Problem retrieving {file.id},{file.name}: {e}")
                     continue
 
-                if not sample_name:
+                sample_name = None
+                if not task_sample_name:
                     # try to parse sample name from file name
                     match = BAID_RE.search(file.name)
                     sample_name = match.group(1) if match else None
                 
-                if not sample_name:
+                if not sample_name and not task_sample_name:
                     print(f"Could not determine sample_name for {file_obj.id}, {file_obj.name} skipping")
                     continue
 
@@ -179,7 +180,7 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
                         "id": file_obj.id,
                         "name": file_obj.name,
                         "project": task.project,
-                        "Bioassay_ID": sample_name,
+                        "Bioassay_ID": sample_name if sample_name else task_sample_name,
                     }
                 )
 
