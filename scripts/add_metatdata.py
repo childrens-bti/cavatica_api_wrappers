@@ -70,6 +70,15 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
 
     project = hf.parse_project(project)
 
+    # different "sample name" fields
+    sample_fields = [
+        "sample_name",
+        "biospecimen_name",
+        "tumor_name",
+        "sample_id",
+        "input_tumor_name",
+    ]
+
     # read config file
     api = hf.parse_config(profile)
 
@@ -135,6 +144,14 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
             print(task.name)
 
         if task.status == "COMPLETED":
+            # get the sample name from the task
+            sample_name = None
+            matches = [task.inputs[key] for key in sample_fields if key in task.inputs]
+            if len(matches) > 1:
+                print(matches)
+                raise ValueError(f"Expected exactly one match, got {len(matches)}")
+            elif len(matches) == 1:
+                sample_name = matches[0]
 
             # get output files from task
             task_files = get_task_files(task)
@@ -148,12 +165,13 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
                     print(f"Problem retrieving {file.id},{file.name}: {e}")
                     continue
 
-                # try to parse sample name from file name
-                match = BAID_RE.search(file.name)
-                sample_name = match.group(1) if match else None
+                if not sample_name:
+                    # try to parse sample name from file name
+                    match = BAID_RE.search(file.name)
+                    sample_name = match.group(1) if match else None
                 
                 if not sample_name:
-                    print(f"Could not determine sample_name for {file.id}, {file.name} skipping")
+                    print(f"Could not determine sample_name for {file_obj.id}, {file_obj.name} skipping")
                     continue
 
                 file_rows.append(
@@ -168,14 +186,18 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
 
     # make df out of file rows
     file_df = pd.DataFrame(file_rows)
-    file_df = pd.DataFrame(columns=["id", "name", "project", "Bioassay_ID"])
+
+    if debug:
+        print(len(file_rows))
+        print(file_df.columns)
+        print(file_df.shape)
 
     # Merge metadata to create output manifest
     file_df = pd.merge(file_df, man_df, on="Bioassay_ID")
 
     if debug:
-        print(out_df.columns)
-        print(out_df.shape)
+        print(file_df.columns)
+        print(file_df.shape)
     file_df.to_csv(output_file, sep="\t", index=False)
 
 
