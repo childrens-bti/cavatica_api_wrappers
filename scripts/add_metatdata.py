@@ -1,12 +1,16 @@
 """Add metadata to files in a project"""
 
 import click
+import re
 import pandas as pd
 from sevenbridges import Api
 from sevenbridges.errors import SbgError
 from helper_functions import helper_functions as hf
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+
+# regex for extracting baid from file name:
+BAID_RE = re.compile(r"(?<![A-Za-z0-9])(B[AS]_[A-Za-z0-9]{8})(?![A-Za-z0-9])")
 
 
 def get_task_files(task) -> list:
@@ -66,15 +70,6 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
 
     project = hf.parse_project(project)
 
-    # different "sample name" fields
-    sample_fields = [
-        "sample_name",
-        "biospecimen_name",
-        "tumor_name",
-        "sample_id",
-        "input_tumor_name",
-    ]
-
     # read config file
     api = hf.parse_config(profile)
 
@@ -96,7 +91,21 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
         "project",
         "adapter_sequencing",
     ]
-    man_df = man_df.drop(unneeded_cols, errors='ignore', axis=1).drop_duplicates()
+    man_df = man_df.drop(unneeded_cols, errors="ignore", axis=1).drop_duplicates()
+
+    # check manifest for Bioassay_IDs with multiple rows
+    duplicate_bioassay_rows = man_df[
+        man_df.duplicated(subset=["Bioassay_ID"], keep=False)
+    ].sort_values("Bioassay_ID")
+    if not duplicate_bioassay_rows.empty:
+        duplicate_bioassay_rows.to_csv(
+            "Bioassay_ID_multiple_rows.tsv", sep="\t", index=False
+        )
+        duplicate_ids = ", ".join(duplicate_bioassay_rows["Bioassay_ID"].unique())
+        raise ValueError(
+            "Manifest contains multiple metadata rows for Bioassay_ID(s): "
+            f"{duplicate_ids}. See Bioassay_ID_multiple_rows.tsv"
+        )
 
     if debug:
         print(man_df.columns)
@@ -119,40 +128,13 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
 
     out_df = pd.DataFrame()
 
+    file_rows = []
     for task in tasks:
 
         if debug:
             print(task.name)
 
         if task.status == "COMPLETED":
-            # get the sample name from the task
-            sample_name = None
-            matches = [task.inputs[key] for key in sample_fields if key in task.inputs]
-            if len(matches) == 0:
-                if "output_basename" in task.inputs:
-                    # try parsing output_basename for sample name
-                    # this assumes out basenames are named like {sample_name}_taskid
-                    if isinstance(task.inputs["output_basename"], str):
-                        # skip if output_basename is not a string (mostly NGS checkmate)
-                        base_split = task.inputs["output_basename"].split("_")
-                        sample_name = "_".join(base_split[:2])
-                if sample_name is None:
-                    # if we can't figure out what the sample_name should be, skip this task
-                    print(f"Task {task.name} has no sample name-like field, skipping")
-                    continue
-            elif len(matches) != 1:
-                raise ValueError(f"Expected exactly one match, got {len(matches)}")
-            else:
-                sample_name = matches[0]
-
-            # look up that sample name in the manifest
-            metadata_row = man_df.loc[man_df["Bioassay_ID"] == sample_name].copy()
-
-            if metadata_row.shape[0] > 1:
-                metadata_row.to_csv(f"{sample_name}_matches.tsv", sep="\t", index=False)
-                raise ValueError(f"{sample_name} has multiple values in {manifest}")
-
-            task_df = pd.DataFrame(columns=["id", "name", "project"])
 
             # get output files from task
             task_files = get_task_files(task)
@@ -166,28 +148,35 @@ def add_metadata(profile, project, task_file, manifest, output_file, debug):
                     print(f"Problem retrieving {file.id},{file.name}: {e}")
                     continue
 
-                task_df.loc[len(task_df)] = {
-                    "id": file.id,
-                    "name": file.name,
-                    "project": task.project,
-                }
+                # try to parse sample name from file name
+                match = BAID_RE.search(file.name)
+                sample_name = match.group(1) if match else None
+                
+                if not sample_name:
+                    print(f"Could not determine sample_name for {file.id}, {file.name} skipping")
+                    continue
 
-            # make a metadata manifest that I can upload to Cavatica
+                file_rows.append(
+                    {
+                        "id": file_obj.id,
+                        "name": file_obj.name,
+                        "project": task.project,
+                        "Bioassay_ID": sample_name,
+                    }
+                )
 
-            # Add a temp key to both task_df and metadata_row
-            task_df["key"] = 1
-            metadata_row["key"] = 1
 
-            # Merge on the temp key and drop it
-            task_df = pd.merge(task_df, metadata_row, on="key").drop("key", axis=1)
+    # make df out of file rows
+    file_df = pd.DataFrame(file_rows)
+    file_df = pd.DataFrame(columns=["id", "name", "project", "Bioassay_ID"])
 
-            # Add task results to main output
-            out_df = pd.concat([out_df, task_df])
+    # Merge metadata to create output manifest
+    file_df = pd.merge(file_df, man_df, on="Bioassay_ID")
 
     if debug:
         print(out_df.columns)
         print(out_df.shape)
-    out_df.to_csv(output_file, sep="\t", index=False)
+    file_df.to_csv(output_file, sep="\t", index=False)
 
 
 if __name__ == "__main__":
