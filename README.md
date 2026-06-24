@@ -119,7 +119,7 @@ Options:
 
 ## Adding metadata from manifest file
 
-To add metadata to a file or list of files from a manifest, you will need a manifest file based on the templates found in the [manifest template repo](https://github.com/childrens-bti/manifest-template), the Cavatica project with files to add metadata to, and optionally as list of task ids that generated those files. The script will generate a metadata manifest that then must be uploaded to Cavatica to update the metadata.
+To add metadata to a file or list of files from a manifest, you will need a manifest file based on the templates found in the [manifest template repo](https://github.com/childrens-bti/manifest-template), the Cavatica project with files to add metadata to, and optionally a list of task ids that generated those files. The script will generate a metadata manifest that then must be manually uploaded to Cavatica to update the metadata.
 
 ### Steps to Add Metadata
 1. Optionally create a file with task ids.
@@ -130,7 +130,7 @@ To add metadata to a file or list of files from a manifest, you will need a mani
 
 ```bash
 python scripts/add_metadata.py
-Usage: add_metatdata.py [OPTIONS]
+Usage: add_metadata.py [OPTIONS]
 
   Add metadata to files on Cavatica
 
@@ -145,7 +145,7 @@ Options:
   -h, --help              Show this message and exit.
 ```
 
-0## Other Scripts Usages
+## Other Scripts Usages
 
 Most scripts in this repo are simple and provide usage and inputs by running them with the -h option.
 
