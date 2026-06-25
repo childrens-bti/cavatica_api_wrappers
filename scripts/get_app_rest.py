@@ -2,6 +2,7 @@
 
 import click
 import requests
+import gzip
 import json
 import configparser
 from pathlib import Path
@@ -103,9 +104,13 @@ def get_app(profile, app, file, dump_file):
         "accept": "application/json",
     }
 
-    print(
-        "app\tproject\trevisionNotes\trepo\thash\tfile\tcopy_pulled\tinputs (name:type:default)\toutputs (name:type:source:pattern)"
-    )
+    #print(
+    #    "app\tproject\trevisionNotes\trepo\thash\tfile\tcopy_pulled\tinputs (name:type:default)\toutputs (name:type:source:pattern)"
+    #)
+
+    quantity = 100 # export after this many apps
+    out_lines = []
+    chunk = 0
 
     for app in apps:
         app_url = f"{url}/apps/{app}"
@@ -122,7 +127,7 @@ def get_app(profile, app, file, dump_file):
 
             # parse output results
             note = res["raw"]["sbg:revisionNotes"]
-            out_line = f"{res["id"]}\t{res["project"]}\t{repr(note)}"
+            #out_line = f"{res["id"]}\t{res["project"]}\t{repr(note)}"
             # parse note
             repo = "NA"
             hash = "NA"
@@ -140,12 +145,33 @@ def get_app(profile, app, file, dump_file):
                         hash = line.replace("commit: ", "").strip()
                     elif line.startswith("file:"):
                         file_name = line.replace("file: ", "").strip()
+
+            # add repo, hash, file_name, and copy_pulled to object
+            res["repo"] = repo
+            res["hash"] = hash
+            res["wf_file_name"] = file_name
+
+            out_lines.append(json.dumps(res) + "\n")
+
+            # if there's 100 out_lines, write to jsonl.gz file and clear out_lines
+            if len(out_lines) == quantity or app == apps[-1]:
+                print(f"Exporting chunk {chunk} with {quantity} apps")
+                chunk_number = str(chunk).zfill(4)
+                out_file = f"app_info_{chunk_number}.jsonl.gz"
+                with gzip.open(out_file, "wt", encoding="utf-8") as f:
+                    for line in out_lines:
+                        f.write(line)
+                out_lines = []
+                chunk += 1
+
+            """
             elif note.startswith("Copy"):
                 copied_id = note.replace("Copy of ", "").strip()
                 if copied_id in apps:
                     copy_pulled = True
                 else:
                     copy_pulled = False
+            
             out_line += f"\t{repo}\t{hash}\t{file_name}\t{copy_pulled}"
             # parse inputs
             inps = []
@@ -184,9 +210,12 @@ def get_app(profile, app, file, dump_file):
             out_line += f"\t{'|'.join(outs)}"
 
             print(out_line)
+            """
 
         else:
             print(f"{app}\tFailed to get app. Status code: {response.status_code}")
+
+    print("Done")
 
 
 if __name__ == "__main__":
