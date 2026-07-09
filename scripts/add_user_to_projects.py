@@ -34,6 +34,8 @@ def project_report(profile, user, project_creator, admin):
     pcs = project_creator.split(",")
 
     for p in projs:
+        if p.id == "childrens-bti/childrens-bti-references":
+            continue
         if p.id.split("/")[0] in pcs:
             users = p.get_members()
             usernames = [user.username for user in users]
