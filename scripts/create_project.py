@@ -12,6 +12,26 @@ REGULAR_USERS = ["chaodi", "corbettr", "ababaei", "raqureshi"]
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
+def parse_users(value):
+    """Parse selected users from GitHub issue-form checkbox or text input output."""
+    if "No response" in value:
+        return []
+
+    checkbox_matches = re.findall(
+        r"^- \[(?P<checked>[ xX])\]\s*(?P<username>.+?)\s*$",
+        value,
+        flags=re.MULTILINE,
+    )
+    if checkbox_matches:
+        return [
+            username.strip()
+            for checked, username in checkbox_matches
+            if checked.lower() == "x"
+        ]
+
+    return [user.strip() for user in value.split(",") if user.strip()]
+
+
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @click.option("--token", help="Cavatica token value")
 @click.option("--run", help="Flag to create project", is_flag=True, default=False)
@@ -35,7 +55,7 @@ def create_project(token, run):
     # default to AWS-BTI-Core
     billing_id = "9fbf675f-6525-4dff-bf55-778a4528c936"
     project = None
-    user_list = None
+    user_list = []
 
     # the split makes a blank first field so skip it
     fields = fields[1:]
@@ -44,7 +64,7 @@ def create_project(token, run):
     for field in fields:
         pair = re.split(r"\n\n", field)
         key = pair[0]
-        value = pair[1]
+        value = pair[1].strip()
         if key == "Billing":
             for billing_group in billing_groups:
                 if billing_group.name == value:
@@ -52,16 +72,11 @@ def create_project(token, run):
         elif key == "Project_Name":
             project = value
         elif key == "Users":
-            if "No response" not in value:
-                users = value
-                if " " in users:
-                    users = value.replace(" ", "")
-                user_list = users.split(",")
+            user_list = parse_users(value)
         else:
             raise ValueError(f"Unknown field: {key}")
 
-    user_list = user_list + REGULAR_USERS
-    user_list = list(set(user_list))
+    user_list = list(dict.fromkeys(user_list + REGULAR_USERS))
 
     # create project
     if run:
