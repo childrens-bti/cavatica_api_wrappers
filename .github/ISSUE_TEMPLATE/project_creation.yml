@@ -20,11 +20,21 @@ body:
       placeholder: 'AWS-BTI-Core'
     validations:
       required: true
-  - type: input
+  - type: checkboxes
     id: users
     attributes:
       label: Users
-      description: Additional Cavatica users to add to project (comma-separated)
-      placeholder: 'sicklera,harenzaj,chaodi,corbettr'
-    validations:
-      required: false
+      description: Additional Cavatica users to add to project
+      options:
+        - label: bisong
+          required: false
+        - label: JDAGGETT
+          required: false
+        - label: kaylyn.clark
+          required: false
+        - label: goswamim2
+          required: false
+        - label: patsullivan
+          required: false
+        - label: sychen9584
+          required: false
