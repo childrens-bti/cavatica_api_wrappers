@@ -19,6 +19,7 @@ setuptools==75.8.0
 sevenbridges-python==2.11.2
 six==1.17.0
 threadpoolctl==3.6.0
+tqdm==4.67.1
 tzdata==2025.1
 urllib3==2.3.0
 wheel==0.45.1
