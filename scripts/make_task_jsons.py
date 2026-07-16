@@ -88,7 +88,8 @@ def get_task_json(profile, task, file):
         data = json.dumps(data)
 
         # store chunk_number has 4 digits
-        chunk_number = str(chunks.index(chunk)).zfill(4)
+        for chunk_number, chunk in enumerate(chunks):
+            chunk_number = str(chunk_number).zfill(4)
 
         response = requests.post(task_url, headers=header, data=data)
         if response.status_code == 200:
