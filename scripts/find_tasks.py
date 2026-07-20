@@ -18,7 +18,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.option(
     "--profile",
     help="Profile to use from credentials file",
-    default="cavatica",
+    default="turbo",
     show_default=True,
 )
 def find_tasks(project, profile, status):
@@ -34,12 +34,12 @@ def find_tasks(project, profile, status):
     stati = [s.strip().upper() for s in status.split(",")]
 
 
-    print("Task Name\tTask Id\tStart Time\tEnd Time\tTask Status")
+    print("Task Name\tTask Id\tStart Time\tEnd Time\tTask Status\t App Id")
 
 
     for task in all_tasks:
        if task.status.upper() in stati:
-          print(f"{task.name}\t{task.id}\t{task.start_time}\t{task.end_time}\t{task.status}")
+          print(f"{task.name}\t{task.id}\t{task.start_time}\t{task.end_time}\t{task.status}\t{task.app}")
 
             #print(dir(task))
 
