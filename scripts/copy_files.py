@@ -4,6 +4,7 @@ import click
 import configparser
 from pathlib import Path
 from sevenbridges import Api
+from tqdm import tqdm
 from helper_functions import helper_functions as hf
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -35,17 +36,18 @@ def copy_files(file_ids, profile, project):
 
     print(f"Copying files to project: {project}")
 
-    # do copies in chunks of 500
-    chunk_size = 500
+    # do copies in chunks
+    chunk_size = 100
     copy_results = {}
-    for i in range(0, len(files), chunk_size):
-        chunk = files[i : i + chunk_size]
-        print(f"Copying files {i} to {i + chunk_size}")
-        copy_result = api.actions.bulk_copy_files(
-            files=chunk,
-            destination_project=project,
-        )
-        copy_results.update(copy_result)
+    with tqdm(total=len(files), desc="Copying files", unit="file") as progress:
+        for i in range(0, len(files), chunk_size):
+            chunk = files[i : i + chunk_size]
+            copy_result = api.actions.bulk_copy_files(
+                files=chunk,
+                destination_project=project,
+            )
+            copy_results.update(copy_result)
+            progress.update(len(chunk))
 
     for original_file_id, copy_result in copy_results.items():
         print(original_file_id, copy_result)
