@@ -152,7 +152,6 @@ def parse_workflow_file(workflow_file):
     default="cavatica",
     show_default=True,
 )
-@click.option("--app", help="App name, appid field on Cavaita app page")
 @click.option(
     "-w",
     "--workflow_file",
@@ -161,17 +160,11 @@ def parse_workflow_file(workflow_file):
 )
 @click.option("--out", help="Output files basename", default="new")
 @click.option(
-    "--skip_name_check",
-    help="Skip checking if app name and workflow file name match",
-    is_flag=True,
-    default=False,
-)
-@click.option(
     "--options_file",
     type=click.Path(exists=True),
     help="Path to options file",
 )
-def create_task_script(profile, app, workflow_file, out, skip_name_check, options_file):
+def create_task_script(profile, workflow_file, out, options_file):
     """
     Create a draft task from a workflow cwl and file with task options.
     """
@@ -182,16 +175,6 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
     api = hf.parse_config(profile)
     username = api.users.me().username
 
-    project_id = "/".join(app.split("/")[:2])
-    project = hf.parse_project(project_id)
-
-    web_app_name = app.split("/")[-1]
-    file_app_name = workflow_file.split("/")[-1].split(".")[0]
-    if web_app_name != file_app_name:
-        if not skip_name_check:
-            print("App name and workflow file name do not match")
-            exit(1)
-
     # parse workflow file
     workflow_inputs, array_inputs, secondary_file_inputs = parse_workflow_file(
         workflow_file
@@ -201,11 +184,12 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
     task_ids = []
     file_ids = {}
     out_lines = []
-    new_cols = ["app", "task_id", "created_by"]
+    new_cols = ["task_id", "created_by"]
     base_names = {}
     with open(options_file, "r") as f:
         line_num = 0
         task_options = []
+        app_index = None
         for line in f:
             if line_num == 0:
                 # parse header
@@ -216,10 +200,23 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
                         base_names[opt] = {"out_name": f"final_{opt}", "value": None}
                 head_line = f"{head_line}\t{"\t".join(new_cols)}\t{"\t".join([base_names[opt]["out_name"] for opt in base_names])}"
                 out_lines.append(head_line)
+                # find the app index in the task options, then remove it
+                if "app" in task_options:
+                    app_index = task_options.index("app")
+                    task_options.remove("app")
+                else:
+                    raise ValueError(
+                        f"App not in options file header: {head_line}. Please add app column to options file."
+                    )
             else:
                 # create new task reading inputs and converting to expected type
                 task_inputs = {}
                 line_split = line.strip().split("\t")
+                app = line_split[app_index]
+                project_id = "/".join(app.split("/")[:2])
+                project = hf.parse_project(project_id)
+                # remove app from line_split
+                line_split.remove(app)
                 for option in task_options:
                     if option not in workflow_inputs:
                         print(
@@ -283,7 +280,8 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
                                 else:
                                     task_inputs[option][i] = task_inputs[option][i]
 
-                task_name = f"{web_app_name}_{today}"
+                app_name = app.split("/")[2]
+                task_name = f"{app_name}_{today}"
                 if "output_basename" in task_inputs:
                     task_name = f"{task_name}_{task_inputs["output_basename"]}"
                 else:
@@ -311,7 +309,7 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
                 print(f"{new_task.name}, {new_task.status}, {new_task.id}")
                 task_ids.append(new_task.id)
                 out_lines.append(
-                    f"{line.strip()}\t{new_task.app}\t{new_task.id}\t{username}\t{"\t".join([base_names[opt]["value"] for opt in base_names])}"
+                    f"{line.strip()}\t{new_task.id}\t{username}\t{"\t".join([base_names[opt]["value"] for opt in base_names])}"
                 )
 
             line_num += 1
