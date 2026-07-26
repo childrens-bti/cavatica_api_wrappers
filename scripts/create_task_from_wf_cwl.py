@@ -12,6 +12,35 @@ from helper_functions import helper_functions as hf
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
+def wrap_file_obj(api, project, cur_input):
+    """
+    Wrapper function for get_file_obj.
+    Tries to handle index files
+
+    Inputs:
+    - api: sevenbridges Api object
+    - project: project id
+    - cur_input: file name or id
+
+    Returns:
+    - file_id: file id
+    """
+    my_indices = (".crai", ".tbi", ".bai", ".fai")
+    path = Path(cur_input)
+    suff = path.suffix
+    if suff in my_indices:
+        main_file = path.stem
+        print(f"Found index file {cur_input}, trying to get main file{main_file}")
+        try:
+            return hf.get_file_obj(api, project, main_file)
+        except FileNotFoundError as exc:
+            raise ValueError(
+                f"Main file {main_file} for index {cur_input} was not found"
+            ) from exc
+
+    return hf.get_file_obj(api, project, cur_input)
+
+
 def get_input_type(my_input):
     """
     Get input type
@@ -27,7 +56,7 @@ def get_input_type(my_input):
     in_type = None
 
     if isinstance(my_input, list):
-        #in_type = "string"
+        # in_type = "string"
         for inp in my_input:
             if inp != "null":
                 in_type, array_input = get_input_type(inp)
@@ -193,7 +222,7 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
                                 if cur_input in file_ids:
                                     task_inputs[option] = file_ids[cur_input]
                                 else:
-                                    my_id = hf.get_file_obj(api, project, cur_input)
+                                    my_id = wrap_file_obj(api, project, cur_input)
                                     task_inputs[option] = my_id
                                     file_ids[cur_input] = my_id
                             elif workflow_inputs[option] == "bool":
@@ -213,9 +242,11 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
                             for i in range(len(task_inputs[option])):
                                 if workflow_inputs[option] == "file":
                                     if task_inputs[option][i] in file_ids:
-                                        task_inputs[option][i] = file_ids[task_inputs[option][i]]
+                                        task_inputs[option][i] = file_ids[
+                                            task_inputs[option][i]
+                                        ]
                                     else:
-                                        my_id = hf.get_file_obj(
+                                        my_id = wrap_file_obj(
                                             api, project, task_inputs[option][i]
                                         )
                                         file_ids[task_inputs[option][i]] = my_id
