@@ -2,7 +2,6 @@
 
 import click
 import sys
-import yaml
 import datetime
 import time
 from pathlib import Path
@@ -102,40 +101,19 @@ def get_input_type(my_input):
     return in_type, is_array
 
 
-def parse_workflow_file(workflow_file):
+def parse_workflow_app(api, app):
     """
-    Parse workflow file and return inputs
+    Parse workflow app and return inputs
     """
     workflow_inputs = {}
     array_inputs = []
-    with open(workflow_file, "r") as stream:
-        try:
-            workflow = yaml.safe_load(stream)
-            inputs = workflow["inputs"]
-            for input in inputs:
-                # figure out input type
-                # if inputs are a list, the input workflow is stricter yaml format
-                # likely exported from Cavatica
-                if isinstance(inputs, list):
-                    workflow_inputs[input["id"]], array_input = get_input_type(
-                        input["type"]
-                    )
-                    if array_input:
-                        array_inputs.append(input["id"])
-                elif isinstance(inputs[input], str):
-                    if "[]" in inputs[input]:
-                        array_inputs.append(input)
-                    workflow_inputs[input] = "string"
-                elif isinstance(inputs[input], dict):
-                    workflow_inputs[input], array_input = get_input_type(
-                        inputs[input]["type"]
-                    )
-                    if array_input:
-                        array_inputs.append(input)
+    app_obj = api.apps.get(app)
+    inputs = app_obj.raw["inputs"]
+    for input in inputs:
+        workflow_inputs[input["id"]], array_input = get_input_type(input["type"])
+        if array_input:
+            array_inputs.append(input["id"])
 
-        except yaml.YAMLError as exc:
-            print(exc)
-            exit(1)
     print("Done processing workflow inputs!", file=sys.stderr)
     return workflow_inputs, array_inputs
 
@@ -147,19 +125,13 @@ def parse_workflow_file(workflow_file):
     default="cavatica",
     show_default=True,
 )
-@click.option(
-    "-w",
-    "--workflow_file",
-    type=click.Path(exists=True),
-    help="Path to workflow file",
-)
 @click.option("--out", help="Output files basename", default="new")
 @click.option(
     "--options_file",
     type=click.Path(exists=True),
     help="Path to options file",
 )
-def create_task_script(profile, workflow_file, out, options_file):
+def create_task_script(profile, out, options_file):
     """
     Create a draft task from a workflow cwl and file with task options.
     """
@@ -170,9 +142,6 @@ def create_task_script(profile, workflow_file, out, options_file):
     api = hf.parse_config(profile)
     username = api.users.me().username
 
-    # parse workflow file
-    workflow_inputs, array_inputs = parse_workflow_file(workflow_file)
-
     # parse options file and create tasks
     task_ids = []
     file_ids = {}
@@ -180,6 +149,8 @@ def create_task_script(profile, workflow_file, out, options_file):
     new_cols = ["task_id", "created_by"]
     base_names = {}
     our_app = None
+    workflow_inputs = None
+    array_inputs = None
     with open(options_file, "r") as f:
         line_num = 0
         task_options = []
@@ -213,6 +184,8 @@ def create_task_script(profile, workflow_file, out, options_file):
                     raise ValueError(
                         f"App {app} does not match previous app {our_app}. Please use the same app for all tasks."
                     )
+                if workflow_inputs is None:
+                    workflow_inputs, array_inputs = parse_workflow_app(api, app)
                 project_id = "/".join(app.split("/")[:2])
                 project = hf.parse_project(project_id)
                 # remove app from line_split
