@@ -41,17 +41,13 @@ The $HOME/.sevenbridges/credentials file has a simple .ini file format, for exam
 
 ## Creating tasks from CWL workflows
 
-Warning: this is very experimental and created tasks should be manually veririfed before using!
-
-The `create_task_from_wf_cwl.py` script parses a CWL workflow and a tsv file with workflow inputs and creates tasks runing the parsed workflow in a project. The input file is described below. When the script is run, it will create draft tasks at the endpoint provided by your profile and will output a file containing the task ids of the created draft tasks. One task will be created for each line in the workflow inputs file. However, it won't load the workflow or any data needed to the project. This must be done separately.
+The `create_task_from_wf_cwl.py` script parses a Cavatica app and a tsv file with workflow inputs and app id and creates tasks runing the parsed workflow in a project. The input file is described below. When the script is run, it will create draft tasks at the endpoint provided by your profile and will create two output files. One containing the task ids of the created draft tasks and another with the options file with added columns: task_id, created_by, and updated output basenames appended with task ids. One task will be created for each line in the workflow inputs file. However, it won't load the workflow or any data needed to the project. This must be done separately.
 
 ### Generating Tasks
 
 1. Create the project the workflow will be run in
 1. Add the workflow to the project
 1. Copy any reference and data files into the project
-1. Clone the repo with the input workflow
-1. Checkout the same github version of the workflow that matches the workflow in the project
 1. Add inputs to the input tsv file
 1. Run the script
 
@@ -67,26 +63,22 @@ Usage: create_task_from_wf_cwl.py [OPTIONS]
 Options:
   --profile TEXT            Profile to use from credentials file  [default:
                             cavatica]
-  --app TEXT                App name, appid field on Cavaita app page
-  -w, --workflow_file PATH  Path to workflow file
   --out TEXT                Output file
-  --skip_name_check         Skip checking if app name and workflow file name
-                            match
   --options_file PATH       Path to options file
   -h, --help                Show this message and exit.
 ```
 
 #### The Options File
 
-The options file is a tsv file with column names corresponding to workflow inputs. If an input is found in the options file, the values in that column will be used when creating draft tasks and will override any default or suggested values for that input. For example, if a workflow has an input `reference_fasta`, the values listed in the `reference_fasta` column in the input file will be used and the default value in the workflow will not.
+The options file is a tsv file with column names corresponding to workflow inputs. It also requires an "app" column which is the app id for the app found in Cavatica; app ids will be in the form "project_creator/project_name/app_name/(optionally revision #)". If an input is found in the options file, the values in that column will be used when creating draft tasks and will override any default or suggested values for that input. For example, if a workflow has an input `reference_fasta`, the values listed in the `reference_fasta` column in the input file will be used and the default value in the workflow will not.
 
 Example options file
 
 ```bash
 $ cat override.txt
-vcf_file    output_basename
-BS_1234.vcf BS_1234_example_workflow_run
-BS_9876.vcf BS_9876_example_workflow_run
+vcf_file    output_basename app
+BS_1234.vcf BS_1234_example_workflow_run  childrens-bti/dev/parse_vcf/0
+BS_9876.vcf BS_9876_example_workflow_run  childrens-bti/dev/parse_vcf/0
 ```
 
 ## Launching draft tasks
