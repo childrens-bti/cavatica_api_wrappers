@@ -175,6 +175,7 @@ def create_task_script(profile, workflow_file, out, options_file):
     out_lines = []
     new_cols = ["task_id", "created_by"]
     base_names = {}
+    our_app = None
     with open(options_file, "r") as f:
         line_num = 0
         task_options = []
@@ -202,6 +203,12 @@ def create_task_script(profile, workflow_file, out, options_file):
                 task_inputs = {}
                 line_split = line.strip().split("\t")
                 app = line_split[app_index]
+                if our_app is None:
+                    our_app = app
+                elif our_app != app:
+                    raise ValueError(
+                        f"App {app} does not match previous app {our_app}. Please use the same app for all tasks."
+                    )
                 project_id = "/".join(app.split("/")[:2])
                 project = hf.parse_project(project_id)
                 # remove app from line_split
