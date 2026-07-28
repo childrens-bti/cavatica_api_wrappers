@@ -131,16 +131,13 @@ def get_file_obj(api, project, file_name) -> str:
     Returns:
     - file_obj: api file object
     """
-    print(f"Searching {project} for {file_name}")
     file_obj = None
 
     # first search for the file directly
     files = api.files.query(project=project, names=[file_name])
     if len(files) == 0:
         found_files = []
-        print(
-            f"File {file_name} not found in root dir of {project}, searching within folders"
-        )
+
         # search for the file in the project
 
         # get all files in the project
@@ -213,13 +210,11 @@ def get_all_projects(api):
     """
     Get all projects the user has access to.
     """
-    # print("Finding projects")
     projects = []
     received = LIMIT
     project_page = api.projects.query(limit=LIMIT)
     projects.extend(project_page)
     while received < project_page.total:
-        # print(f"Looking for more projects, found {received}")
         project_page = api.projects.query(limit=LIMIT, offset=received)
         projects.extend(project_page)
         received += LIMIT
@@ -231,13 +226,11 @@ def get_all_billing(api):
     """
     Get all billing groups the user has access to.
     """
-    print("Finding billing groups")
     billings = []
     received = LIMIT
     billing_page = api.billing_groups.query(limit=LIMIT)
     billings.extend(billing_page)
     while received < billing_page.total:
-        print(f"Looking for more projects, found {received}")
         billing_page = api.billing_groups.query(limit=LIMIT, offset=received)
         billings.extend(billing_page)
         received += LIMIT
