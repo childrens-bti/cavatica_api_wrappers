@@ -30,9 +30,13 @@ def wrap_file_obj(api, project, cur_input):
     suff = path.suffix
     if suff in my_indices:
         main_file = path.stem
-        print(f"Found index file {cur_input}, trying to get main file{main_file}")
+        print(f"Found index file {cur_input}, trying to get main file {main_file}")
         try:
-            return hf.get_file_obj(api, project, main_file)
+            # return hf.get_file_obj(api, project, main_file)
+            main_obj = hf.get_file_obj(api, project, main_file)
+            raise ValueError(
+                f"Index file given. Update options file to include {main_file} instead of {cur_input}"
+            )
         except FileNotFoundError as exc:
             raise ValueError(
                 f"Main file {main_file} for index {cur_input} was not found"
