@@ -84,17 +84,7 @@ BS_9876.vcf BS_9876_example_workflow_run  childrens-bti/dev/parse_vcf/0
 
 #### Structured JSON inputs (TIRTL-seq)
 
-Use `--task-inputs-json` when an upstream workflow helper has already generated structured CAVATICA inputs. The JSON must contain a non-empty `app` string identifying the CAVATICA app and a non-empty `output_basename`. For TIRTL-seq, `output_basename` is the plate's `Bioassay_ID`. The wrapper removes `app` before submitting the remaining values as workflow inputs.
-
-```json
-{
-  "app": "childrens-bti/tirtl-dev/tirtl-cwl/13",
-  "output_basename": "aph17",
-  "r1_files": [],
-  "r2_files": [],
-  "well_names": []
-}
-```
+Use `--task-inputs-json` when an upstream workflow helper has already generated structured CAVATICA inputs. The JSON must contain a non-empty `app` string identifying the CAVATICA app and a non-empty `output_basename`. For TIRTL-seq, `output_basename` is the plate's `Bioassay_ID`. The wrapper removes `app` before submitting the remaining values as workflow inputs. Like TSV mode, it rejects options not defined by the app and reports validation errors returned by CAVATICA with the draft task ID.
 
 ```bash
 python scripts/create_task_from_wf_cwl.py \

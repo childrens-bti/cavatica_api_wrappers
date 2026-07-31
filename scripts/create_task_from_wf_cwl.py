@@ -86,6 +86,27 @@ def load_task_inputs_json(path):
     return task_inputs, app.strip(), output_basename
 
 
+def validate_json_task_inputs(api, app, task_inputs):
+    """Reject JSON keys that are not inputs for the selected app."""
+    workflow_inputs, _ = parse_workflow_app(api, app)
+    unknown = sorted(set(task_inputs) - set(workflow_inputs))
+    if unknown:
+        raise click.ClickException(
+            "Task inputs contain option(s) not in the CAVATICA app: "
+            + ", ".join(unknown)
+        )
+
+
+def check_task_errors(task):
+    """Fail with the draft ID when CAVATICA reports task validation errors."""
+    task_errors = getattr(task, "errors", None)
+    if isinstance(task_errors, (dict, list, tuple)) and task_errors:
+        raise click.ClickException(
+            f"Draft task {task.id} was created with validation errors: "
+            + json.dumps(task_errors, default=str)
+        )
+
+
 def create_task_from_json(
     api,
     username,
@@ -102,6 +123,7 @@ def create_task_from_json(
     new_task = api.tasks.create(
         name=task_name, project=project, app=app, inputs=task_inputs
     )
+    check_task_errors(new_task)
     final_output_basename = f"{original_output_basename}_{new_task.id}"
 
     try:
@@ -254,9 +276,10 @@ def create_task_script(profile, out, options_file, task_inputs_json):
 
     # get api
     api = hf.parse_config(profile)
-    username = api.users.me().username
 
     if task_inputs_json:
+        validate_json_task_inputs(api, app, json_task_inputs)
+        username = api.users.me().username
         project = hf.parse_project(project_id)
         create_task_from_json(
             api,
@@ -270,6 +293,8 @@ def create_task_script(profile, out, options_file, task_inputs_json):
             today,
         )
         return
+
+    username = api.users.me().username
     # parse options file and create tasks
     task_ids = []
     file_ids = {}
@@ -384,6 +409,7 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                 new_task = api.tasks.create(
                     name=task_name, project=project, app=app, inputs=task_inputs
                 )
+                check_task_errors(new_task)
 
                 # update task now that we have task id
                 if base_names:
