@@ -1,6 +1,8 @@
 """Create a draft task from a workflow cwl"""
 
 import click
+import csv
+import json
 import sys
 import datetime
 import time
@@ -42,6 +44,93 @@ def wrap_file_obj(api, project, cur_input):
             ) from exc
 
     return hf.get_file_obj(api, project, cur_input)
+
+
+def parse_app_id(app):
+    """Return the project and app name from an app ID, with an optional revision."""
+    parts = app.strip("/").split("/")
+    if len(parts) not in (3, 4) or not all(parts):
+        raise click.UsageError(
+            "--app must use the format user/project/app or user/project/app/revision"
+        )
+    return "/".join(parts[:2]), parts[2]
+
+
+def load_task_inputs_json(path):
+    """Load and validate inputs for one JSON-backed task."""
+    try:
+        with open(path, "r") as handle:
+            task_inputs = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise click.ClickException(
+            f"Task inputs JSON is not valid JSON: {path}: {exc}"
+        ) from exc
+
+    if not isinstance(task_inputs, dict):
+        raise click.ClickException("Task inputs JSON must contain one JSON object")
+
+    output_basename = task_inputs.get("output_basename")
+    if not isinstance(output_basename, str) or not output_basename.strip():
+        raise click.ClickException(
+            "Task inputs JSON must contain a non-empty string output_basename"
+        )
+
+    output_basename = output_basename.strip()
+    task_inputs["output_basename"] = output_basename
+    return task_inputs, output_basename
+
+
+def create_task_from_json(
+    api,
+    username,
+    app,
+    project,
+    app_name,
+    task_inputs,
+    original_output_basename,
+    out,
+    today,
+):
+    """Create and record one draft task from structured JSON inputs."""
+    task_name = f"{app_name}_{today}_{original_output_basename}"
+    new_task = api.tasks.create(
+        name=task_name, project=project, app=app, inputs=task_inputs
+    )
+    final_output_basename = f"{original_output_basename}_{new_task.id}"
+
+    try:
+        new_task.inputs["output_basename"] = final_output_basename
+        new_task.save()
+    except Exception as exc:
+        raise click.ClickException(
+            f"Draft task {new_task.id} was created, but updating output_basename failed: {exc}"
+        ) from exc
+
+    print(f"{new_task.name}, {new_task.status}, {new_task.id}")
+
+    with open(f"{out}_task_ids.txt", "w") as handle:
+        handle.write(f"{new_task.id}\n")
+
+    with open(f"{out}_tasks.tsv", "w", newline="") as handle:
+        writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
+        writer.writerow(
+            [
+                "app",
+                "task_id",
+                "created_by",
+                "original_output_basename",
+                "final_output_basename",
+            ]
+        )
+        writer.writerow(
+            [
+                app,
+                new_task.id,
+                username,
+                original_output_basename,
+                final_output_basename,
+            ]
+        )
 
 
 def get_input_type(my_input):
@@ -131,10 +220,34 @@ def parse_workflow_app(api, app):
     type=click.Path(exists=True),
     help="Path to options file",
 )
-def create_task_script(profile, out, options_file):
+@click.option(
+    "--app",
+    help="CAVATICA app ID; required with --task-inputs-json",
+)
+@click.option(
+    "--task-inputs-json",
+    type=click.Path(exists=True, dir_okay=False),
+    help="JSON object containing inputs for one CAVATICA task",
+)
+def create_task_script(profile, out, options_file, app, task_inputs_json):
     """
-    Create a draft task from a workflow cwl and file with task options.
+    Create draft tasks from TSV options or one structured JSON input object.
     """
+
+    if bool(options_file) == bool(task_inputs_json):
+        raise click.UsageError(
+            "Provide exactly one of --options_file or --task-inputs-json"
+        )
+    # Validate JSON before connecting to CAVATICA.
+    json_task_inputs = None
+    json_output_basename = None
+    if task_inputs_json:
+        if not app:
+            raise click.UsageError("--app is required with --task-inputs-json")
+        project_id, web_app_name = parse_app_id(app)
+        json_task_inputs, json_output_basename = load_task_inputs_json(
+            task_inputs_json
+        )
 
     today = datetime.datetime.now().strftime("%Y%m%d")
 
@@ -142,6 +255,20 @@ def create_task_script(profile, out, options_file):
     api = hf.parse_config(profile)
     username = api.users.me().username
 
+    if task_inputs_json:
+        project = hf.parse_project(project_id)
+        create_task_from_json(
+            api,
+            username,
+            app,
+            project,
+            web_app_name,
+            json_task_inputs,
+            json_output_basename,
+            out,
+            today,
+        )
+        return
     # parse options file and create tasks
     task_ids = []
     file_ids = {}
