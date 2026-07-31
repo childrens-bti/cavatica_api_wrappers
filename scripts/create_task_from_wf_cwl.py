@@ -111,7 +111,7 @@ def create_task_from_json(
     with open(f"{out}_task_ids.txt", "w") as handle:
         handle.write(f"{new_task.id}\n")
 
-    with open(f"{out}_tasks.tsv", "w", newline="") as handle:
+    with open(f"{out}_options.tsv", "w", newline="") as handle:
         writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
         writer.writerow(
             [

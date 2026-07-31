@@ -95,7 +95,7 @@ python scripts/create_task_from_wf_cwl.py \
   --out aph17
 ```
 
-The script creates a draft task and then updates its output basename to `<Bioassay_ID>_<CAVATICA_TASK_ID>`. It writes the task ID to `aph17_task_ids.txt` and a credential-free audit record to `aph17_tasks.tsv`. The full input JSON is not copied because it may contain a MiXCR license.
+The script creates a draft task and then updates its output basename to `<Bioassay_ID>_<CAVATICA_TASK_ID>`. It writes the task ID to `aph17_task_ids.txt` and a credential-free task record to `aph17_options.tsv`, matching the existing TSV-mode output convention. The full input JSON is not copied because it may contain a MiXCR license.
 
 Inspect the draft in CAVATICA before launching it. To launch it with the wrapper:
 
