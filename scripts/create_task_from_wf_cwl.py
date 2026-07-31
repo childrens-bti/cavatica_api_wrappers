@@ -51,7 +51,7 @@ def parse_app_id(app):
     parts = app.strip("/").split("/")
     if len(parts) not in (3, 4) or not all(parts):
         raise click.UsageError(
-            "--app must use the format user/project/app or user/project/app/revision"
+            "JSON app must use the format user/project/app or user/project/app/revision"
         )
     return "/".join(parts[:2]), parts[2]
 
@@ -69,6 +69,12 @@ def load_task_inputs_json(path):
     if not isinstance(task_inputs, dict):
         raise click.ClickException("Task inputs JSON must contain one JSON object")
 
+    app = task_inputs.pop("app", None)
+    if not isinstance(app, str) or not app.strip():
+        raise click.ClickException(
+            "Task inputs JSON must contain a non-empty string app"
+        )
+
     output_basename = task_inputs.get("output_basename")
     if not isinstance(output_basename, str) or not output_basename.strip():
         raise click.ClickException(
@@ -77,7 +83,7 @@ def load_task_inputs_json(path):
 
     output_basename = output_basename.strip()
     task_inputs["output_basename"] = output_basename
-    return task_inputs, output_basename
+    return task_inputs, app.strip(), output_basename
 
 
 def create_task_from_json(
@@ -221,15 +227,11 @@ def parse_workflow_app(api, app):
     help="Path to options file",
 )
 @click.option(
-    "--app",
-    help="CAVATICA app ID; required with --task-inputs-json",
-)
-@click.option(
     "--task-inputs-json",
     type=click.Path(exists=True, dir_okay=False),
     help="JSON object containing inputs for one CAVATICA task",
 )
-def create_task_script(profile, out, options_file, app, task_inputs_json):
+def create_task_script(profile, out, options_file, task_inputs_json):
     """
     Create draft tasks from TSV options or one structured JSON input object.
     """
@@ -240,14 +242,13 @@ def create_task_script(profile, out, options_file, app, task_inputs_json):
         )
     # Validate JSON before connecting to CAVATICA.
     json_task_inputs = None
+    app = None
     json_output_basename = None
     if task_inputs_json:
-        if not app:
-            raise click.UsageError("--app is required with --task-inputs-json")
-        project_id, web_app_name = parse_app_id(app)
-        json_task_inputs, json_output_basename = load_task_inputs_json(
+        json_task_inputs, app, json_output_basename = load_task_inputs_json(
             task_inputs_json
         )
+        project_id, web_app_name = parse_app_id(app)
 
     today = datetime.datetime.now().strftime("%Y%m%d")
 
