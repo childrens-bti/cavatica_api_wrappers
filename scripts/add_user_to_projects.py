@@ -3,7 +3,9 @@
 import click
 import time
 from sevenbridges import Api
+from sevenbridges.errors import Forbidden
 from helper_functions import helper_functions as hf
+from tqdm import tqdm
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
@@ -31,26 +33,28 @@ def project_report(profile, user, project_creator, admin):
 
     projs = hf.get_all_projects(api)
 
-    pcs = project_creator.split(",")
+    pcs = set(project_creator.split(","))
 
-    for p in projs:
+    for p in tqdm(projs, desc="Adding user to projects", unit="project"):
         if p.id == "childrens-bti/childrens-bti-references":
             continue
         if p.id.split("/")[0] in pcs:
-            users = p.get_members()
-            usernames = [user.username for user in users]
-            if user not in usernames:
-                new_member = p.add_member(
-                    user=user,
-                    permissions={
-                        "read": True,
-                        "write": True,
-                        "execute": True,
-                        "copy": True,
-                        "admin": admin,
-                    },
-                )
-                print(f"Added {user} to {p.id}")
+            try:
+                users = p.get_members()
+                usernames = {member.username for member in users}
+                if user not in usernames:
+                    p.add_member(
+                        user=user,
+                        permissions={
+                            "read": True,
+                            "write": True,
+                            "execute": True,
+                            "copy": True,
+                            "admin": admin,
+                        },
+                    )
+            except Forbidden:
+                tqdm.write(f"Insufficient permissions for {p.id}; skipping")
 
     print("Finished adding user to projects")
 
