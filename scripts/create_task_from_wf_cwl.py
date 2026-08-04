@@ -216,7 +216,7 @@ def create_task_script(profile, workflow_file, out, options_file):
                 project_id = "/".join(app.split("/")[:2])
                 project = hf.parse_project(project_id)
                 # remove app from line_split
-                line_split.remove(app)
+                del line_split[app_index]
                 for option in task_options:
                     if option not in workflow_inputs:
                         print(
