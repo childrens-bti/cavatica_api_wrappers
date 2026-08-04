@@ -41,14 +41,14 @@ The $HOME/.sevenbridges/credentials file has a simple .ini file format, for exam
 
 ## Creating tasks from CWL workflows
 
-The `create_task_from_wf_cwl.py` script parses a Cavatica app and a tsv file with workflow inputs and app id and creates tasks runing the parsed workflow in a project. The input file is described below. When the script is run, it will create draft tasks at the endpoint provided by your profile and will create two output files. One containing the task ids of the created draft tasks and another with the options file with added columns: task_id, created_by, and updated output basenames appended with task ids. One task will be created for each line in the workflow inputs file. However, it won't load the workflow or any data needed to the project. This must be done separately.
+The `create_task_from_wf_cwl.py` script creates draft tasks from either a TSV options file containing a CAVATICA app ID or one structured task-input JSON file. One task is created for each TSV row; JSON mode creates one task from the supplied object. The script does not upload the workflow or input data to the project, so those must be prepared separately.
 
 ### Generating Tasks
 
 1. Create the project the workflow will be run in
 1. Add the workflow to the project
 1. Copy any reference and data files into the project
-1. Add inputs to the input tsv file
+1. Prepare a TSV options file or structured task-input JSON
 1. Run the script
 
 ### Script usage
@@ -58,13 +58,14 @@ To get a full list of inputs, run:
 python scripts/create_task_from_wf_cwl.py -h
 Usage: create_task_from_wf_cwl.py [OPTIONS]
 
-  Create a draft task from a workflow cwl and file with task options.
+  Create draft tasks from TSV options or one structured JSON input object.
 
 Options:
   --profile TEXT            Profile to use from credentials file  [default:
                             cavatica]
-  --out TEXT                Output file
+  --out TEXT                Output files basename
   --options_file PATH       Path to options file
+  --task-inputs-json FILE   JSON object containing inputs for one CAVATICA task
   -h, --help                Show this message and exit.
 ```
 
@@ -79,6 +80,36 @@ $ cat override.txt
 vcf_file    output_basename app
 BS_1234.vcf BS_1234_example_workflow_run  childrens-bti/dev/parse_vcf/0
 BS_9876.vcf BS_9876_example_workflow_run  childrens-bti/dev/parse_vcf/0
+```
+
+#### Structured JSON inputs (TIRTL-seq)
+
+<<<<<<< HEAD
+Use `--task-inputs-json` when an upstream workflow helper has already generated structured CAVATICA inputs. The JSON must contain one object with a non-empty string `output_basename`. For TIRTL-seq, this value is the plate's `Bioassay_ID`.
+=======
+Use `--task-inputs-json` when an upstream workflow helper has already generated structured CAVATICA inputs. The JSON must contain a non-empty `app` string identifying the CAVATICA app and a non-empty `output_basename`. For TIRTL-seq, `output_basename` is the plate's `Bioassay_ID`. The wrapper removes `app` before submitting the remaining values as workflow inputs. Like TSV mode, it rejects options not defined by the app and reports validation errors returned by CAVATICA with the draft task ID.
+>>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
+
+```bash
+python scripts/create_task_from_wf_cwl.py \
+  --profile cavatica \
+<<<<<<< HEAD
+  --app childrens-bti/tirtl-dev/tirtl-cwl/13 \
+=======
+>>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
+  --task-inputs-json /path/to/aph17_cavatica_inputs.json \
+  --out aph17
+```
+
+The script creates a draft task and then updates its output basename to `<Bioassay_ID>_<CAVATICA_TASK_ID>`. It writes the task ID to `aph17_task_ids.txt` and a credential-free task record to `aph17_options.tsv`, matching the existing TSV-mode output convention. The full input JSON is not copied because it may contain a MiXCR license.
+
+Inspect the draft in CAVATICA before launching it. To launch it with the wrapper:
+
+```bash
+python scripts/run_tasks.py \
+  --profile cavatica \
+  --task_file aph17_task_ids.txt \
+  --output_basename aph17
 ```
 
 ## Launching draft tasks
