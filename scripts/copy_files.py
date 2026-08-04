@@ -19,7 +19,21 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
     default="cavatica",
     show_default=True,
 )
-def copy_files(file_ids, profile, project):
+@click.option(
+    "--chunk_size",
+    help="Number of files to copy per bulk request",
+    default=100,
+    show_default=True,
+    type=int,
+)
+@click.option(
+    "--skip_existing",
+    help="Skip files that already exist by name in the destination project",
+    is_flag=True,
+    default=False,
+    show_default=True,
+)
+def copy_files(file_ids, profile, project, chunk_size, skip_existing):
     """
     Copy a list of file ids to a new target project.
     """
@@ -36,17 +50,40 @@ def copy_files(file_ids, profile, project):
 
     print(f"Copying files to project: {project}")
 
+    existing_names = None
+    if skip_existing:
+        existing_names = {f.name for f in hf.get_all_files(api, project) if not f.is_folder()}
+
     # do copies in chunks
-    chunk_size = 100
     copy_results = {}
     with tqdm(total=len(files), desc="Copying files", unit="file") as progress:
         for i in range(0, len(files), chunk_size):
             chunk = files[i : i + chunk_size]
-            copy_result = api.actions.bulk_copy_files(
-                files=chunk,
-                destination_project=project,
-            )
-            copy_results.update(copy_result)
+
+            to_copy = chunk
+            if skip_existing:
+                # look up names for this chunk and skip files already in the project
+                records = api.files.bulk_get(files=chunk)
+                to_copy = []
+                for record in records:
+                    if record.resource.name in existing_names:
+                        progress.write(f"Skipping {record.resource.id} ({record.resource.name}), already exists in {project}")
+                    else:
+                        to_copy.append(record.resource.id)
+
+            if to_copy:
+                copy_result = api.actions.bulk_copy_files(
+                    files=to_copy,
+                    destination_project=project,
+                )
+                copy_results.update(copy_result)
+                if skip_existing:
+                    existing_names.update(
+                        record.resource.name
+                        for record in records
+                        if record.resource.id in to_copy
+                    )
+
             progress.update(len(chunk))
 
     for original_file_id, copy_result in copy_results.items():
