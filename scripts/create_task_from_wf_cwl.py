@@ -31,9 +31,13 @@ def wrap_file_obj(api, project, cur_input):
     suff = path.suffix
     if suff in my_indices:
         main_file = path.stem
-        print(f"Found index file {cur_input}, trying to get main file{main_file}")
+        print(f"Found index file {cur_input}, trying to get main file {main_file}")
         try:
-            return hf.get_file_obj(api, project, main_file)
+            # return hf.get_file_obj(api, project, main_file)
+            main_obj = hf.get_file_obj(api, project, main_file)
+            raise ValueError(
+                f"Index file given. Update options file to include {main_file} instead of {cur_input}"
+            )
         except FileNotFoundError as exc:
             raise ValueError(
                 f"Main file {main_file} for index {cur_input} was not found"
@@ -47,7 +51,7 @@ def parse_app_id(app):
     parts = app.strip("/").split("/")
     if len(parts) not in (3, 4) or not all(parts):
         raise click.UsageError(
-            "--app must use the format user/project/app or user/project/app/revision"
+            "JSON app must use the format user/project/app or user/project/app/revision"
         )
     return "/".join(parts[:2]), parts[2]
 
@@ -65,6 +69,15 @@ def load_task_inputs_json(path):
     if not isinstance(task_inputs, dict):
         raise click.ClickException("Task inputs JSON must contain one JSON object")
 
+<<<<<<< HEAD
+=======
+    app = task_inputs.pop("app", None)
+    if not isinstance(app, str) or not app.strip():
+        raise click.ClickException(
+            "Task inputs JSON must contain a non-empty string app"
+        )
+
+>>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
     output_basename = task_inputs.get("output_basename")
     if not isinstance(output_basename, str) or not output_basename.strip():
         raise click.ClickException(
@@ -73,7 +86,32 @@ def load_task_inputs_json(path):
 
     output_basename = output_basename.strip()
     task_inputs["output_basename"] = output_basename
+<<<<<<< HEAD
     return task_inputs, output_basename
+=======
+    return task_inputs, app.strip(), output_basename
+
+
+def validate_json_task_inputs(api, app, task_inputs):
+    """Reject JSON keys that are not inputs for the selected app."""
+    workflow_inputs, _ = parse_workflow_app(api, app)
+    unknown = sorted(set(task_inputs) - set(workflow_inputs))
+    if unknown:
+        raise click.ClickException(
+            "Task inputs contain option(s) not in the CAVATICA app: "
+            + ", ".join(unknown)
+        )
+
+
+def check_task_errors(task):
+    """Fail with the draft ID when CAVATICA reports task validation errors."""
+    task_errors = getattr(task, "errors", None)
+    if isinstance(task_errors, (dict, list, tuple)) and task_errors:
+        raise click.ClickException(
+            f"Draft task {task.id} was created with validation errors: "
+            + json.dumps(task_errors, default=str)
+        )
+>>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
 
 
 def create_task_from_json(
@@ -92,6 +130,10 @@ def create_task_from_json(
     new_task = api.tasks.create(
         name=task_name, project=project, app=app, inputs=task_inputs
     )
+<<<<<<< HEAD
+=======
+    check_task_errors(new_task)
+>>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
     final_output_basename = f"{original_output_basename}_{new_task.id}"
 
     try:
@@ -217,15 +259,22 @@ def parse_workflow_app(api, app):
     help="Path to options file",
 )
 @click.option(
+<<<<<<< HEAD
     "--app",
     help="CAVATICA app ID; required with --task-inputs-json",
 )
 @click.option(
+=======
+>>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
     "--task-inputs-json",
     type=click.Path(exists=True, dir_okay=False),
     help="JSON object containing inputs for one CAVATICA task",
 )
+<<<<<<< HEAD
 def create_task_script(profile, out, options_file, app, task_inputs_json):
+=======
+def create_task_script(profile, out, options_file, task_inputs_json):
+>>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
     """
     Create draft tasks from TSV options or one structured JSON input object.
     """
@@ -236,6 +285,7 @@ def create_task_script(profile, out, options_file, app, task_inputs_json):
         )
     # Validate JSON before connecting to CAVATICA.
     json_task_inputs = None
+<<<<<<< HEAD
     json_output_basename = None
     if task_inputs_json:
         if not app:
@@ -244,12 +294,40 @@ def create_task_script(profile, out, options_file, app, task_inputs_json):
         json_task_inputs, json_output_basename = load_task_inputs_json(
             task_inputs_json
         )
+=======
+    app = None
+    json_output_basename = None
+    if task_inputs_json:
+        json_task_inputs, app, json_output_basename = load_task_inputs_json(
+            task_inputs_json
+        )
+        project_id, web_app_name = parse_app_id(app)
+>>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
 
     today = datetime.datetime.now().strftime("%Y%m%d")
 
     # get api
     api = hf.parse_config(profile)
+
+    if task_inputs_json:
+        validate_json_task_inputs(api, app, json_task_inputs)
+        username = api.users.me().username
+        project = hf.parse_project(project_id)
+        create_task_from_json(
+            api,
+            username,
+            app,
+            project,
+            web_app_name,
+            json_task_inputs,
+            json_output_basename,
+            out,
+            today,
+        )
+        return
+
     username = api.users.me().username
+<<<<<<< HEAD
 
     if task_inputs_json:
         project = hf.parse_project(project_id)
@@ -265,6 +343,8 @@ def create_task_script(profile, out, options_file, app, task_inputs_json):
             today,
         )
         return
+=======
+>>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
     # parse options file and create tasks
     task_ids = []
     file_ids = {}
@@ -379,6 +459,7 @@ def create_task_script(profile, out, options_file, app, task_inputs_json):
                 new_task = api.tasks.create(
                     name=task_name, project=project, app=app, inputs=task_inputs
                 )
+                check_task_errors(new_task)
 
                 # update task now that we have task id
                 if base_names:

@@ -65,7 +65,6 @@ Options:
                             cavatica]
   --out TEXT                Output files basename
   --options_file PATH       Path to options file
-  --app TEXT                CAVATICA app ID; required with --task-inputs-json
   --task-inputs-json FILE   JSON object containing inputs for one CAVATICA task
   -h, --help                Show this message and exit.
 ```
@@ -85,12 +84,19 @@ BS_9876.vcf BS_9876_example_workflow_run  childrens-bti/dev/parse_vcf/0
 
 #### Structured JSON inputs (TIRTL-seq)
 
+<<<<<<< HEAD
 Use `--task-inputs-json` when an upstream workflow helper has already generated structured CAVATICA inputs. The JSON must contain one object with a non-empty string `output_basename`. For TIRTL-seq, this value is the plate's `Bioassay_ID`.
+=======
+Use `--task-inputs-json` when an upstream workflow helper has already generated structured CAVATICA inputs. The JSON must contain a non-empty `app` string identifying the CAVATICA app and a non-empty `output_basename`. For TIRTL-seq, `output_basename` is the plate's `Bioassay_ID`. The wrapper removes `app` before submitting the remaining values as workflow inputs. Like TSV mode, it rejects options not defined by the app and reports validation errors returned by CAVATICA with the draft task ID.
+>>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
 
 ```bash
 python scripts/create_task_from_wf_cwl.py \
   --profile cavatica \
+<<<<<<< HEAD
   --app childrens-bti/tirtl-dev/tirtl-cwl/13 \
+=======
+>>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
   --task-inputs-json /path/to/aph17_cavatica_inputs.json \
   --out aph17
 ```
