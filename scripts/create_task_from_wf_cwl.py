@@ -12,6 +12,39 @@ from helper_functions import helper_functions as hf
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
+def wrap_file_obj(api, project, cur_input, reject_indices=False):
+    """
+    Wrapper function for get_file_obj.
+    Tries to handle index files
+
+    Inputs:
+    - api: sevenbridges Api object
+    - project: project id
+    - cur_input: file name or id
+
+    Returns:
+    - file_id: file id
+    """
+    my_indices = (".crai", ".tbi", ".bai", ".fai")
+    path = Path(cur_input)
+    suff = path.suffix
+    if reject_indices and suff in my_indices:
+        main_file = path.stem
+        print(f"Found index file {cur_input}, trying to get main file {main_file}")
+        try:
+            # return hf.get_file_obj(api, project, main_file)
+            main_obj = hf.get_file_obj(api, project, main_file)
+            raise ValueError(
+                f"Index file given. Update options file to include {main_file} instead of {cur_input}"
+            )
+        except FileNotFoundError as exc:
+            raise ValueError(
+                f"Main file {main_file} for index {cur_input} was not found"
+            ) from exc
+
+    return hf.get_file_obj(api, project, cur_input)
+
+
 def get_input_type(my_input):
     """
     Get input type
@@ -27,7 +60,7 @@ def get_input_type(my_input):
     in_type = None
 
     if isinstance(my_input, list):
-        #in_type = "string"
+        # in_type = "string"
         for inp in my_input:
             if inp != "null":
                 in_type, array_input = get_input_type(inp)
@@ -75,6 +108,7 @@ def parse_workflow_file(workflow_file):
     """
     workflow_inputs = {}
     array_inputs = []
+    secondary_file_inputs = set()
     with open(workflow_file, "r") as stream:
         try:
             workflow = yaml.safe_load(stream)
@@ -87,6 +121,8 @@ def parse_workflow_file(workflow_file):
                     workflow_inputs[input["id"]], array_input = get_input_type(
                         input["type"]
                     )
+                    if input.get("secondaryFiles"):
+                        secondary_file_inputs.add(input["id"])
                     if array_input:
                         array_inputs.append(input["id"])
                 elif isinstance(inputs[input], str):
@@ -97,6 +133,8 @@ def parse_workflow_file(workflow_file):
                     workflow_inputs[input], array_input = get_input_type(
                         inputs[input]["type"]
                     )
+                    if inputs[input].get("secondaryFiles"):
+                        secondary_file_inputs.add(input)
                     if array_input:
                         array_inputs.append(input)
 
@@ -104,7 +142,7 @@ def parse_workflow_file(workflow_file):
             print(exc)
             exit(1)
     print("Done processing workflow inputs!", file=sys.stderr)
-    return workflow_inputs, array_inputs
+    return workflow_inputs, array_inputs, secondary_file_inputs
 
 
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
@@ -155,7 +193,9 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
             exit(1)
 
     # parse workflow file
-    workflow_inputs, array_inputs = parse_workflow_file(workflow_file)
+    workflow_inputs, array_inputs, secondary_file_inputs = parse_workflow_file(
+        workflow_file
+    )
 
     # parse options file and create tasks
     task_ids = []
@@ -193,7 +233,12 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
                                 if cur_input in file_ids:
                                     task_inputs[option] = file_ids[cur_input]
                                 else:
-                                    my_id = hf.get_file_obj(api, project, cur_input)
+                                    my_id = wrap_file_obj(
+                                        api,
+                                        project,
+                                        cur_input,
+                                        option in secondary_file_inputs,
+                                    )
                                     task_inputs[option] = my_id
                                     file_ids[cur_input] = my_id
                             elif workflow_inputs[option] == "bool":
@@ -213,10 +258,15 @@ def create_task_script(profile, app, workflow_file, out, skip_name_check, option
                             for i in range(len(task_inputs[option])):
                                 if workflow_inputs[option] == "file":
                                     if task_inputs[option][i] in file_ids:
-                                        task_inputs[option][i] = file_ids[task_inputs[option][i]]
+                                        task_inputs[option][i] = file_ids[
+                                            task_inputs[option][i]
+                                        ]
                                     else:
-                                        my_id = hf.get_file_obj(
-                                            api, project, task_inputs[option][i]
+                                        my_id = wrap_file_obj(
+                                            api,
+                                            project,
+                                            task_inputs[option][i],
+                                            option in secondary_file_inputs,
                                         )
                                         file_ids[task_inputs[option][i]] = my_id
                                         task_inputs[option][i] = my_id
