@@ -1,8 +1,10 @@
 """Helper functions for sbg python api"""
 
 import configparser
+import sys
 from pathlib import Path
 from sevenbridges import Api
+from sevenbridges.errors import SbgError
 from sevenbridges.http.error_handlers import rate_limit_sleeper, maintenance_sleeper
 
 # set api limit for pagination
@@ -209,20 +211,42 @@ def query_tasks(api, **kwargs):
     return tasks
 
 
+def _query_projects_resilient(api, offset, limit):
+    """
+    Fetch one page of api.projects.query(), skipping any individual project
+    the platform can't serialize instead of failing the whole page. Some
+    projects 500 on the full-field expansion the SDK always requests (seen
+    with cavatica/pnoc-dipg-pa-02) - bisect a failing page down to isolate
+    and skip just the broken record(s).
+    """
+    try:
+        return list(api.projects.query(limit=limit, offset=offset))
+    except SbgError as e:
+        if limit == 1:
+            print(
+                f"WARNING: skipping project at offset {offset} "
+                f"(server error: {e.message})",
+                file=sys.stderr,
+            )
+            return []
+        mid = limit // 2
+        return _query_projects_resilient(api, offset, mid) + _query_projects_resilient(
+            api, offset + mid, limit - mid
+        )
+
+
 def get_all_projects(api):
     """
-    Get all projects the user has access to.
+    Get all projects the user has access to. Projects the platform can't
+    serialize are skipped with a warning (see _query_projects_resilient)
+    rather than aborting the whole report.
     """
-    # print("Finding projects")
+    total = api.projects.query(limit=1).total
     projects = []
-    received = LIMIT
-    project_page = api.projects.query(limit=LIMIT)
-    projects.extend(project_page)
-    while received < project_page.total:
-        # print(f"Looking for more projects, found {received}")
-        project_page = api.projects.query(limit=LIMIT, offset=received)
-        projects.extend(project_page)
-        received += LIMIT
+    offset = 0
+    while offset < total:
+        projects.extend(_query_projects_resilient(api, offset, LIMIT))
+        offset += LIMIT
 
     return projects
 
