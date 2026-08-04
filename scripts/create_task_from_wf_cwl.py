@@ -11,7 +11,7 @@ from helper_functions import helper_functions as hf
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
-def wrap_file_obj(api, project, cur_input):
+def wrap_file_obj(api, project, cur_input, reject_indices=False):
     """
     Wrapper function for get_file_obj.
     Tries to handle index files
@@ -27,7 +27,7 @@ def wrap_file_obj(api, project, cur_input):
     my_indices = (".crai", ".tbi", ".bai", ".fai")
     path = Path(cur_input)
     suff = path.suffix
-    if suff in my_indices:
+    if reject_indices and suff in my_indices:
         main_file = path.stem
         print(f"Found index file {cur_input}, trying to get main file {main_file}")
         try:
@@ -107,15 +107,18 @@ def parse_workflow_app(api, app):
     """
     workflow_inputs = {}
     array_inputs = []
+    secondary_file_inputs = set()
     app_obj = api.apps.get(app)
     inputs = app_obj.raw["inputs"]
     for input in inputs:
         workflow_inputs[input["id"]], array_input = get_input_type(input["type"])
         if array_input:
             array_inputs.append(input["id"])
+        if inputs["secondaryFiles"]:
+            secondary_file_inputs.add(input)
 
     print("Done processing workflow inputs!", file=sys.stderr)
-    return workflow_inputs, array_inputs
+    return workflow_inputs, array_inputs, secondary_file_inputs
 
 
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
@@ -189,7 +192,7 @@ def create_task_script(profile, out, options_file):
                 project_id = "/".join(app.split("/")[:2])
                 project = hf.parse_project(project_id)
                 # remove app from line_split
-                line_split.remove(app)
+                del line_split[app_index]
                 for option in task_options:
                     if option not in workflow_inputs:
                         print(
@@ -203,7 +206,12 @@ def create_task_script(profile, out, options_file):
                                 if cur_input in file_ids:
                                     task_inputs[option] = file_ids[cur_input]
                                 else:
-                                    my_id = wrap_file_obj(api, project, cur_input)
+                                    my_id = wrap_file_obj(
+                                        api,
+                                        project,
+                                        cur_input,
+                                        option in secondary_file_inputs,
+                                    )
                                     task_inputs[option] = my_id
                                     file_ids[cur_input] = my_id
                             elif workflow_inputs[option] == "bool":
@@ -228,7 +236,10 @@ def create_task_script(profile, out, options_file):
                                         ]
                                     else:
                                         my_id = wrap_file_obj(
-                                            api, project, task_inputs[option][i]
+                                            api,
+                                            project,
+                                            task_inputs[option][i],
+                                            option in secondary_file_inputs,
                                         )
                                         file_ids[task_inputs[option][i]] = my_id
                                         task_inputs[option][i] = my_id
