@@ -69,15 +69,12 @@ def load_task_inputs_json(path):
     if not isinstance(task_inputs, dict):
         raise click.ClickException("Task inputs JSON must contain one JSON object")
 
-<<<<<<< HEAD
-=======
     app = task_inputs.pop("app", None)
     if not isinstance(app, str) or not app.strip():
         raise click.ClickException(
             "Task inputs JSON must contain a non-empty string app"
         )
 
->>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
     output_basename = task_inputs.get("output_basename")
     if not isinstance(output_basename, str) or not output_basename.strip():
         raise click.ClickException(
@@ -86,15 +83,12 @@ def load_task_inputs_json(path):
 
     output_basename = output_basename.strip()
     task_inputs["output_basename"] = output_basename
-<<<<<<< HEAD
-    return task_inputs, output_basename
-=======
     return task_inputs, app.strip(), output_basename
 
 
 def validate_json_task_inputs(api, app, task_inputs):
     """Reject JSON keys that are not inputs for the selected app."""
-    workflow_inputs, _ = parse_workflow_app(api, app)
+    workflow_inputs, _, _ = parse_workflow_app(api, app)
     unknown = sorted(set(task_inputs) - set(workflow_inputs))
     if unknown:
         raise click.ClickException(
@@ -111,7 +105,6 @@ def check_task_errors(task):
             f"Draft task {task.id} was created with validation errors: "
             + json.dumps(task_errors, default=str)
         )
->>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
 
 
 def create_task_from_json(
@@ -130,10 +123,7 @@ def create_task_from_json(
     new_task = api.tasks.create(
         name=task_name, project=project, app=app, inputs=task_inputs
     )
-<<<<<<< HEAD
-=======
     check_task_errors(new_task)
->>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
     final_output_basename = f"{original_output_basename}_{new_task.id}"
 
     try:
@@ -241,8 +231,8 @@ def parse_workflow_app(api, app):
         workflow_inputs[input["id"]], array_input = get_input_type(input["type"])
         if array_input:
             array_inputs.append(input["id"])
-        if inputs["secondaryFiles"]:
-            secondary_file_inputs.add(input)
+        if "secondaryFiles" in input:
+            secondary_file_inputs.add(input["id"])
 
     print("Done processing workflow inputs!", file=sys.stderr)
     return workflow_inputs, array_inputs, secondary_file_inputs
@@ -262,22 +252,11 @@ def parse_workflow_app(api, app):
     help="Path to options file",
 )
 @click.option(
-<<<<<<< HEAD
-    "--app",
-    help="CAVATICA app ID; required with --task-inputs-json",
-)
-@click.option(
-=======
->>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
     "--task-inputs-json",
     type=click.Path(exists=True, dir_okay=False),
     help="JSON object containing inputs for one CAVATICA task",
 )
-<<<<<<< HEAD
-def create_task_script(profile, out, options_file, app, task_inputs_json):
-=======
 def create_task_script(profile, out, options_file, task_inputs_json):
->>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
     """
     Create draft tasks from TSV options or one structured JSON input object.
     """
@@ -288,16 +267,6 @@ def create_task_script(profile, out, options_file, task_inputs_json):
         )
     # Validate JSON before connecting to CAVATICA.
     json_task_inputs = None
-<<<<<<< HEAD
-    json_output_basename = None
-    if task_inputs_json:
-        if not app:
-            raise click.UsageError("--app is required with --task-inputs-json")
-        project_id, web_app_name = parse_app_id(app)
-        json_task_inputs, json_output_basename = load_task_inputs_json(
-            task_inputs_json
-        )
-=======
     app = None
     json_output_basename = None
     if task_inputs_json:
@@ -305,7 +274,6 @@ def create_task_script(profile, out, options_file, task_inputs_json):
             task_inputs_json
         )
         project_id, web_app_name = parse_app_id(app)
->>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
 
     today = datetime.datetime.now().strftime("%Y%m%d")
 
@@ -330,24 +298,6 @@ def create_task_script(profile, out, options_file, task_inputs_json):
         return
 
     username = api.users.me().username
-<<<<<<< HEAD
-
-    if task_inputs_json:
-        project = hf.parse_project(project_id)
-        create_task_from_json(
-            api,
-            username,
-            app,
-            project,
-            web_app_name,
-            json_task_inputs,
-            json_output_basename,
-            out,
-            today,
-        )
-        return
-=======
->>>>>>> fd36351cbccb6f78e782cc6e00883e985423f0c9
     # parse options file and create tasks
     task_ids = []
     file_ids = {}
@@ -357,6 +307,7 @@ def create_task_script(profile, out, options_file, task_inputs_json):
     our_app = None
     workflow_inputs = None
     array_inputs = None
+    secondary_files = None
     with open(options_file, "r") as f:
         line_num = 0
         task_options = []
@@ -391,7 +342,7 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                         f"App {app} does not match previous app {our_app}. Please use the same app for all tasks."
                     )
                 if workflow_inputs is None:
-                    workflow_inputs, array_inputs = parse_workflow_app(api, app)
+                    workflow_inputs, array_inputs, secondary_files = parse_workflow_app(api, app)
                 project_id = "/".join(app.split("/")[:2])
                 project = hf.parse_project(project_id)
                 # remove app from line_split
@@ -413,7 +364,7 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                                         api,
                                         project,
                                         cur_input,
-                                        option in secondary_file_inputs,
+                                        option in secondary_files,
                                     )
                                     task_inputs[option] = my_id
                                     file_ids[cur_input] = my_id
@@ -442,7 +393,7 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                                             api,
                                             project,
                                             task_inputs[option][i],
-                                            option in secondary_file_inputs,
+                                            option in secondary_files,
                                         )
                                         file_ids[task_inputs[option][i]] = my_id
                                         task_inputs[option][i] = my_id
