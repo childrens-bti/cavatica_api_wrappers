@@ -2,6 +2,7 @@ import click
 from sevenbridges.errors import SbgError
 from helper_functions import helper_functions as hf
 import pandas as pd
+from tqdm import tqdm
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 CHUNK_SIZE = 100  # API allows up to 100 import items per call
@@ -121,7 +122,7 @@ def bulk_import(project, volume, s3_keys_file, profile, manifest, run):
         click.echo("[dry-run] Nothing was submitted.")
         return
 
-    for i, chunk in enumerate(chunks, start=1):
+    for i, chunk in enumerate(tqdm(chunks, desc="Submitting chunks", unit="chunk"), start=1):
         click.echo(f"Submitting chunk {i}/{len(chunks)} with {len(chunk)} item(s)...")
         try:
             api.imports.bulk_submit(imports=chunk)
