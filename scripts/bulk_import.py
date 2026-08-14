@@ -68,10 +68,12 @@ def parse_manifest(manifest_path):
         details = ", ".join(uri for uri, _ in missing[:10])
         if len(missing) > 10:
             details += f", ... ({len(missing)} total)"
-        raise ValueError(f"S3 object(s) not found or inaccessible: {details} \n first check that you are logged in to AWS")
+        raise ValueError(
+            f"S3 object(s) not found or inaccessible: {details} \n first check that you are logged in to AWS"
+        )
 
-    # remove 's3://bucket-name/' from keys
-    s3_keys = [key.split("/", 3)[-1] for key in s3_keys]
+    # Return the validated object keys without the bucket or s3:// prefix.
+    s3_keys = [parse_s3_uri(s3_uri)[1] for s3_uri in s3_keys]
 
     return s3_keys
 
