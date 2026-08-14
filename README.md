@@ -293,6 +293,7 @@ Options:
   --profile TEXT  Profile to use from credentials file  [default: cavatica]
   -h, --help      Show this message and exit
 ```
+
 ### Bulk Import Files from S3 Using `bulk_import.py`
 
 The `bulk_import.py` script bulk‑imports files from an S3‑backed Cavatica volume into a specified Cavatica project. It accepts either a text file containing one S3 object key per line or a CSV/TSV manifest. Manifest input combines the `s3_path` and `file_name` columns into the S3 object keys used for import. Do not provide both input types.
