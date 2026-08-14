@@ -1,9 +1,42 @@
 import click
 from sevenbridges.errors import SbgError
 from helper_functions import helper_functions as hf
+import pandas as pd
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 CHUNK_SIZE = 100  # API allows up to 100 import items per call
+
+
+def parse_manifest(manifest_path):
+    """
+    Parse manifest file combining s3 path and file name columns.
+
+    Inputs:
+        manifest_path: str, path to the manifest file (CSV or TSV)
+    Returns:
+        List of S3 key paths/objects
+    """
+    # Determine the file type based on the extension
+    if manifest_path.endswith(".csv"):
+        df = pd.read_csv(manifest_path)
+    elif manifest_path.endswith(".tsv"):
+        df = pd.read_csv(manifest_path, sep="\t")
+    else:
+        raise ValueError("Manifest file must be either CSV or TSV format.")
+
+    # Check for required columns
+    required_columns = ["file_name", "aws_s3_path"]
+    for col in required_columns:
+        if col not in df.columns:
+            raise ValueError(f"Manifest file is missing required column: {col}")
+
+    # Combine s3_path and file_name to create full S3 key paths
+    s3_keys = df.apply(lambda row: f"{row['s3_path'].rstrip('/')}/{row['file_name']}", axis=1).tolist()
+    
+    # remove 's3://bucket-name/' from keys
+    s3_keys = [key.split('/', 3)[-1] for key in s3_keys]
+
+    return s3_keys
 
 
 def load_s3_keys(file_path):
@@ -40,8 +73,6 @@ def build_import_item(volume, s3_key_object, project):
 @click.option(
     "--s3-keys-file",
     "s3_keys_file",
-    required=True,
-    type=click.Path(exists=True),
     help=(
         "Text file containing S3 object keys (file paths), one per line. This is NOT an AWS authentication/access key , use S3 object paths (e.g. path/within/volume/file.raw)."
     ),
@@ -53,12 +84,16 @@ def build_import_item(volume, s3_key_object, project):
     help="Credentials profile to use e.g. cavatica or turbo",
 )
 @click.option(
+    "--manifest",
+    help="Path to a manifest file (CSV or TSV) containing S3 keys and metadata. If provided, the script will read S3 keys from the manifest instead of a separate text file.",
+)
+@click.option(
     "--run",
     is_flag=True,
     default=False,
     help="Actually submit the imports. Without this flag, the script only does a dry run.",
 )
-def bulk_import(project, volume, s3_keys_file, profile, run):
+def bulk_import(project, volume, s3_keys_file, profile, manifest, run):
     """
     Bulk import files from an S3-backed volume into a Cavatica project.
     The script reads S3 keys from a text file, groups them into batches of 100,
@@ -67,7 +102,15 @@ def bulk_import(project, volume, s3_keys_file, profile, run):
     api = hf.parse_config(profile)
     project = hf.parse_project(project)
 
-    s3_keys = load_s3_keys(s3_keys_file)
+    if manifest and s3_keys_file:
+        raise ValueError("Please provide either a manifest file or an S3 keys file, not both.")
+    elif s3_keys_file:    
+        s3_keys = load_s3_keys(s3_keys_file)
+    elif manifest:
+        s3_keys = parse_manifest(manifest)
+    else:
+        raise ValueError("Please provide either a manifest file or an S3 keys file.")
+
     all_items = [build_import_item(volume, key, project) for key in s3_keys]
     chunks = list(chunk_list(all_items, CHUNK_SIZE))
 
