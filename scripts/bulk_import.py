@@ -49,11 +49,15 @@ def parse_manifest(manifest_path):
         lambda row: f"{row['aws_s3_path'].rstrip('/')}/{row['file_name']}", axis=1
     ).tolist()
 
+    parsed_s3_keys = [
+        (s3_uri, *parse_s3_uri(s3_uri)) for s3_uri in s3_keys
+    ]
+
     # Verify objects concurrently since each existence check is a network call.
     s3 = boto3.client("s3")
 
-    def object_exists(s3_uri):
-        bucket, key = parse_s3_uri(s3_uri)
+    def object_exists(parsed_s3_key):
+        s3_uri, bucket, key = parsed_s3_key
         try:
             s3.head_object(Bucket=bucket, Key=key)
             return None
@@ -62,7 +66,9 @@ def parse_manifest(manifest_path):
 
     worker_count = min(32, len(s3_keys)) or 1
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        missing = [result for result in executor.map(object_exists, s3_keys) if result]
+        missing = [
+            result for result in executor.map(object_exists, parsed_s3_keys) if result
+        ]
 
     if missing:
         details = ", ".join(uri for uri, _ in missing[:10])
@@ -73,7 +79,7 @@ def parse_manifest(manifest_path):
         )
 
     # Return the validated object keys without the bucket or s3:// prefix.
-    s3_keys = [parse_s3_uri(s3_uri)[1] for s3_uri in s3_keys]
+    s3_keys = [key for _, _, key in parsed_s3_keys]
 
     return s3_keys
 
