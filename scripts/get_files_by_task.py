@@ -70,7 +70,7 @@ def get_scrna_files(api, all_tasks, debug=False):
     Get the file ids of output files from a list of scRNA tasks.
     For scRNA tasks, the output file is just a folder.
     Go through that folder, look for the results folder,
-    get all of the fiels in subfolders of the results folder.
+    get all of the files in subfolders of the results folder.
     Inputs:
     - api object
     - list of task objects

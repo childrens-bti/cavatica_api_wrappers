@@ -26,6 +26,7 @@ def find_file(file_name, project, profile):
     print(file_obj.id)
     print(file_obj.name)
     #print(file_obj.storage.type)
+    print(dir(file_obj))
 
 if __name__ == "__main__":
     find_file()

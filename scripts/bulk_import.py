@@ -31,7 +31,7 @@ def parse_manifest(manifest_path):
             raise ValueError(f"Manifest file is missing required column: {col}")
 
     # Combine s3_path and file_name to create full S3 key paths
-    s3_keys = df.apply(lambda row: f"{row['s3_path'].rstrip('/')}/{row['file_name']}", axis=1).tolist()
+    s3_keys = df.apply(lambda row: f"{row['aws_s3_path'].rstrip('/')}/{row['file_name']}", axis=1).tolist()
     
     # remove 's3://bucket-name/' from keys
     s3_keys = [key.split('/', 3)[-1] for key in s3_keys]
