@@ -160,6 +160,24 @@ Options:
   -h, --help              Show this message and exit.
 ```
 
+## Generating a Projects Report
+
+Use `generate_projects_report.py` to list the projects created by the selected
+user, their members, and whether the expected users have administrator
+permissions. Run it from the repository root after configuring your
+Seven Bridges credentials:
+
+```bash
+python scripts/generate_projects_report.py --profile cavatica
+```
+
+The profile defaults to `cavatica`, so `--profile` can be omitted when using
+that profile. To view all available options:
+
+```bash
+python scripts/generate_projects_report.py -h
+```
+
 ## Other Scripts Usages
 
 Most scripts in this repo are simple and provide usage and inputs by running them with the -h option.
