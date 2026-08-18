@@ -28,22 +28,23 @@ def project_report(profile):
 
     print("project\tusers\turl\tcorrect permissions")
 
+    owned_project_prefix = f"{me.username}/"
+    expected_admins = {"sicklera", "harenzaj", "chaodi"}
     for p in projs:
-        if p.id.split("/")[0] == me.username:
-            correct_permissions = False
-            permission_count = 0
-            link = f"{base_link}{p.id}"
-            users = p.get_members()
-            usernames = []
-            for user in users:
-                username = user.username
-                if username in ["sicklera", "harenzaj", "chaodi"]:
-                    if user.permissions["admin"] == True:
-                        permission_count += 1
-                usernames.append(username)
-            if permission_count == 3:
-                correct_permissions = True
-            print(f"{p.id}\t{",".join(usernames)}\t{link}\t{correct_permissions}")
+        if not p.id.startswith(owned_project_prefix):
+            continue
+
+        permission_count = 0
+        link = f"{base_link}{p.id}"
+        usernames = []
+        for user in p.get_members():
+            username = user.username
+            usernames.append(username)
+            if username in expected_admins and user.permissions["admin"] == True:
+                permission_count += 1
+
+        correct_permissions = permission_count == len(expected_admins)
+        print(f"{p.id}\t{",".join(usernames)}\t{link}\t{correct_permissions}")
 
 
 if __name__ == "__main__":
