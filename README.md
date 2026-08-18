@@ -168,7 +168,7 @@ permissions. Run it from the repository root after configuring your
 Seven Bridges credentials:
 
 ```bash
-python scripts/generate_projects_report.py --profile cavatica
+python scripts/generate_projects_report.py --profile cavatica > report.txt
 ```
 
 The profile defaults to `cavatica`, so `--profile` can be omitted when using
