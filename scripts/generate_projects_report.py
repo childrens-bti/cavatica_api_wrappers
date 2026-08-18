@@ -30,10 +30,15 @@ def project_report(profile):
 
     owned_project_prefix = f"{me.username}/"
     expected_admins = {"sicklera", "harenzaj", "chaodi"}
+    my_projs = 0
+    if len(projs) == 0:
+        print("No projects found")
+        return
     for p in projs:
         if not p.id.startswith(owned_project_prefix):
             continue
 
+        my_projs += 1
         permission_count = 0
         link = f"{base_link}{p.id}"
         usernames = []
@@ -45,6 +50,9 @@ def project_report(profile):
 
         correct_permissions = permission_count == len(expected_admins)
         print(f"{p.id}\t{",".join(usernames)}\t{link}\t{correct_permissions}")
+    
+    if my_projs == 0:
+        print("No projects owned by user found")
 
 
 if __name__ == "__main__":
