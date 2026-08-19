@@ -147,6 +147,12 @@ def bulk_import(project, volume, s3_keys_file, profile, manifest, run):
     api = hf.parse_config(profile)
     project = hf.parse_project(project)
 
+    volume_parts = volume.split("/")
+    if len(volume_parts) != 2 or not all(volume_parts):
+        raise ValueError(
+            f"ERROR: Volume {volume} is not in the correct format, please provide a volume ID in the format 'owner/volume-name'"
+        )
+
     if manifest and s3_keys_file:
         raise ValueError(
             "Please provide either a manifest file or an S3 keys file, not both."
