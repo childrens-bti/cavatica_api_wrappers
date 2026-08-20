@@ -25,7 +25,7 @@ def get_regular_files(api, all_tasks, debug=False):
         initial_files = check_and_get_files(task)
 
         if debug:
-            print(f"Current task id: {task.id}  {task.name}")
+            print(f"Current task id: {task.id}  {task.name}", file=sys.stderr)
 
         # loop through files and add any secondary files, and check that both files exist
         for file in initial_files:
@@ -119,7 +119,13 @@ def check_and_get_files(task):
     show_default=True,
 )
 @click.option("--debug", help="Print some debug messages", is_flag=True, default=False)
-def get_task_files(task_file, task_id, profile, debug):
+@click.option(
+    "--output_file",
+    "-o",
+    help="Output filename",
+    required=True,
+)
+def get_task_files(task_file, task_id, profile, debug, output_file):
     """
     Take a task or a list of tasks and find all output files.
     """
@@ -141,13 +147,14 @@ def get_task_files(task_file, task_id, profile, debug):
 
     files_to_display = get_regular_files(api, all_tasks, debug)
 
-    print(f"file_name\tfile_id")
-    if len(files_to_display) > 0:
-        # format output
-        for file in files_to_display:
-            print(f"{file.name}\t{file.id}")
-    else:
-        print("No files found in input task(s)")
+    with open(output_file, "w") as out_f:
+        out_f.write("file_name\tfile_id\n")
+        if len(files_to_display) > 0:
+            # format output
+            for file in files_to_display:
+                out_f.write(f"{file.name}\t{file.id}\n")
+        else:
+            out_f.write("No files found in input task(s)\n")
 
 
 if __name__ == "__main__":
