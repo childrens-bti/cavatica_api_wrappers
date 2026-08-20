@@ -30,9 +30,10 @@ def get_regular_files(api, all_tasks, debug=False):
         # loop through files and add any secondary files, and check that both files exist
         for file in initial_files:
             try:
-                file_obj = api.files.get(id=file)
-            except NotFound as e:
+                file_obj = api.files.get(id=file.id)
+            except NotFound:
                 print(f"Can't find {file}, file doesn't exist", file=sys.stderr)
+                continue
 
             if file_obj.is_folder():
                 sub_files = hf.get_all_files_folder(api, file_obj)
@@ -49,18 +50,18 @@ def get_regular_files(api, all_tasks, debug=False):
             else:
                 files_to_display.append(file)
 
-            if file_obj.secondary_files is not None:
-                for secondary in file.secondary_files:
-                    try:
-                        file_obj = api.files.get(id=secondary)
-                    except NotFound as e:
-                        print(
-                            f"Can't find {file_obj.name}, file doesn't exist",
-                            file=sys.stderr,
-                        )
-                    # check if secondary already in list
-                    if secondary not in files_to_display:
-                        files_to_display.append(secondary)
+            for secondary in file.secondary_files or []:
+                try:
+                    secondary_obj = api.files.get(id=secondary.id)
+                except NotFound:
+                    print(
+                        f"Can't find {secondary}, file doesn't exist",
+                        file=sys.stderr,
+                    )
+                    continue
+                # check if secondary already in list
+                if secondary_obj not in files_to_display:
+                    files_to_display.append(secondary_obj)
 
     return files_to_display
 
