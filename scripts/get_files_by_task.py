@@ -65,64 +65,6 @@ def get_regular_files(api, all_tasks, debug=False):
     return files_to_display
 
 
-def get_scrna_files(api, all_tasks, debug=False):
-    """
-    Get the file ids of output files from a list of scRNA tasks.
-    For scRNA tasks, the output file is just a folder.
-    Go through that folder, look for the results folder,
-    get all of the fiels in subfolders of the results folder.
-    Inputs:
-    - api object
-    - list of task objects
-    Returns:
-    - list of file objects
-    """
-    limit = hf.LIMIT if hasattr(hf, "LIMIT") else 50
-    display_files = []
-
-    for task in all_tasks:
-        if debug:
-            print(f"Current task id: {task.id}  {task.name}")
-
-        root_files = check_and_get_files(task)
-        if len(root_files) > 1:
-            raise ValueError("More than one output file found, task is not scrna.")
-
-        try:
-            file_obj = api.files.get(id=root_files[0])
-        except NotFound:
-            print(f"Can't find {root_files[0]}, file doesn't exist", file=sys.stderr)
-            continue
-        if not file_obj.is_folder():
-            raise ValueError(
-                f"{file_obj.name} is not a folder. If you are getting files from a non-scRNA task, \
-                do not use the --scrna option."
-            )
-        
-        # this folder will have results and checkpoints
-        sub_folders = hf.get_all_files_folder(api, file_obj)
-        results_folder = None
-        for fol in sub_folders:
-            if fol.name == "results":
-                results_folder = fol
-        if not results_folder:
-            print(f"ERROR: No results folder found in {file_obj.name}", file=sys.stderr)
-            exit(1)
-
-        # get all folder in results_folder
-        display_files = hf.get_all_files_folder(api, results_folder)
-
-    # remove folders from display_files
-    final_files = []
-    for d in display_files:
-        if not d.is_folder():
-            if debug:
-                print(f"Adding {d.name}")
-            final_files.append(d)
-
-    return final_files
-
-
 def check_and_get_files(task):
     """
     Check that a task is COMPLETED and get files.
@@ -176,13 +118,7 @@ def check_and_get_files(task):
     show_default=True,
 )
 @click.option("--debug", help="Print some debug messages", is_flag=True, default=False)
-@click.option(
-    "--scrna",
-    help="If the task is an scRNA task, use this option to get the files",
-    is_flag=True,
-    default=False,
-)
-def get_task_files(task_file, task_id, profile, debug, scrna):
+def get_task_files(task_file, task_id, profile, debug):
     """
     Take a task or a list of tasks and find all output files.
     """
@@ -202,11 +138,7 @@ def get_task_files(task_file, task_id, profile, debug, scrna):
                 task_id = line.strip()
                 all_tasks.append(api.tasks.get(id=task_id))
 
-    files_to_display = []
-    if scrna:
-        files_to_display = get_scrna_files(api, all_tasks, debug)
-    else:
-        files_to_display = get_regular_files(api, all_tasks, debug)
+    files_to_display = get_regular_files(api, all_tasks, debug)
 
     print(f"file_name\tfile_id")
     if len(files_to_display) > 0:
