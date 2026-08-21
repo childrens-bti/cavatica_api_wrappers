@@ -8,7 +8,6 @@ import datetime
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from sevenbridges import Api
 from helper_functions import helper_functions as hf
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -24,7 +23,7 @@ def wrap_file_obj(api, project, cur_input, file_dict, reject_indices=False):
     - api: sevenbridges Api object
     - project: project id
     - cur_input: file name or id
-    - file_dict: dictionary of file names to ids
+    - file_dict: dictionary of file names to file objects
 
     Returns:
     - file_id: file id
@@ -375,19 +374,22 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                     project, _ = parse_app_id(app)
                     all_project_files = hf.get_all_files(api, project)
                     # store all project files in a dictionary for faster lookup
-                    # dictionary form: {file_name: whole file_obj}
+                    # dictionary form: {file_name: [file_obj, ...]}
                     all_project_file_dict = {}
                     for file_obj in all_project_files:
-                        previous_file = all_project_file_dict.get(file_obj.name)
-                        if previous_file is not None:
+                        matching_files = all_project_file_dict.setdefault(
+                            file_obj.name, []
+                        )
+                        if matching_files:
+                            previous_file = matching_files[-1]
                             warnings.warn(
                                 f"Duplicate file name {file_obj.name!r} found for file ids "
-                                f"{previous_file.id} and {file_obj.id}"
+                                f"{previous_file.id} and {file_obj.id}. "
                                 f"This will be an error if a task tries to use {file_obj.name!r} as an input.",
                                 UserWarning,
                                 stacklevel=2,
                             )
-                        all_project_file_dict[file_obj.name] = file_obj
+                        matching_files.append(file_obj)
                 elif our_app != app:
                     raise ValueError(
                         f"App {app} does not match previous app {our_app}. Please use the same app for all tasks."
