@@ -6,11 +6,13 @@ import json
 import sys
 import datetime
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from sevenbridges import Api
 from helper_functions import helper_functions as hf
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+TASK_API_WORKERS = 8
 
 
 def wrap_file_obj(api, project, cur_input, file_dict, reject_indices=False):
@@ -108,6 +110,28 @@ def check_task_errors(task):
             f"Draft task {task.id} was created with validation errors: "
             + json.dumps(task_errors, default=str)
         )
+
+
+def create_task_from_spec(api, task_spec):
+    """Create one draft task from a prepared task specification."""
+    new_task = api.tasks.create(**task_spec)
+    check_task_errors(new_task)
+    return new_task
+
+
+def save_task_outputs(task_and_bases):
+    """Update and save output basenames for one created task."""
+    task, bases = task_and_bases
+    output_values = {}
+    for base in bases:
+        if task.inputs[base] is not None:
+            output_value = f"{task.inputs[base]}_{task.id}"
+        else:
+            output_value = task.id
+        task.inputs[base] = output_value
+        output_values[base] = output_value
+    task.save()
+    return task, output_values
 
 
 def create_task_from_json(
@@ -304,6 +328,7 @@ def create_task_script(profile, out, options_file, task_inputs_json):
     # parse options file and create tasks
     task_ids = []
     out_lines = []
+    task_specs = []
     new_cols = ["task_id", "created_by"]
     all_project_files = {}
     base_names = {}
@@ -418,33 +443,50 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                 else:
                     task_name = f"{task_name}_{line_num}"
 
-                # call api and store task_id
-                new_task = api.tasks.create(
-                    name=task_name, project=project, app=app, inputs=task_inputs
+                task_specs.append(
+                    {
+                        "name": task_name,
+                        "project": project,
+                        "app": app,
+                        "inputs": task_inputs,
+                    }
                 )
-                check_task_errors(new_task)
-
-                # update task now that we have task id
-                if base_names:
-                    for base in base_names:
-                        if new_task.inputs[base] is not None:
-                            base_names[base][
-                                "value"
-                            ] = f"{new_task.inputs[base]}_{new_task.id}"
-                            new_task.inputs[base] = base_names[base]["value"]
-                        else:
-                            base_names[base]["value"] = new_task.id
-                            new_task.inputs[base] = base_names[base]["value"]
-
-                    new_task.save()
-
-                print(f"{new_task.name}, {new_task.status}, {new_task.id}")
-                task_ids.append(new_task.id)
-                out_lines.append(
-                    f"{line.strip()}\t{new_task.id}\t{username}\t{"\t".join([base_names[opt]["value"] for opt in base_names])}"
-                )
+                out_lines.append(line.strip())
 
             line_num += 1
+
+    # Task creation and output updates are independent across rows. map() keeps
+    # results in input order while the API calls run concurrently.
+    if task_specs:
+        worker_count = min(TASK_API_WORKERS, len(task_specs))
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            created_tasks = list(
+                executor.map(
+                    lambda task_spec: create_task_from_spec(api, task_spec), task_specs
+                )
+            )
+
+            if base_names:
+                saved_tasks = list(
+                    executor.map(
+                        save_task_outputs,
+                        ((task, tuple(base_names)) for task in created_tasks),
+                    )
+                )
+            else:
+                saved_tasks = [(task, {}) for task in created_tasks]
+    else:
+        saved_tasks = []
+
+    task_lines = out_lines[:1]
+    for original_line, (new_task, output_values) in zip(out_lines[1:], saved_tasks):
+        print(f"{new_task.name}, {new_task.status}, {new_task.id}")
+        task_ids.append(new_task.id)
+        task_lines.append(
+            f"{original_line}\t{new_task.id}\t{username}\t"
+            + "\t".join(output_values[opt] for opt in base_names)
+        )
+    out_lines = task_lines
 
     # output task ids to file
     task_file = f"{out}_task_ids.txt"
