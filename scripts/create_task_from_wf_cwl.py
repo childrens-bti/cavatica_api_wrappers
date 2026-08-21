@@ -13,15 +13,16 @@ from helper_functions import helper_functions as hf
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
-def wrap_file_obj(api, project, cur_input, reject_indices=False):
+def wrap_file_obj(api, project, cur_input, file_dict, reject_indices=False):
     """
-    Wrapper function for get_file_obj.
+    Wrapper function to get file id.
     Tries to handle index files
 
     Inputs:
     - api: sevenbridges Api object
     - project: project id
     - cur_input: file name or id
+    - file_dict: dictionary of file names to ids
 
     Returns:
     - file_id: file id
@@ -32,18 +33,20 @@ def wrap_file_obj(api, project, cur_input, reject_indices=False):
     if reject_indices and suff in my_indices:
         main_file = path.stem
         print(f"Found index file {cur_input}, trying to get main file {main_file}")
-        try:
-            # return hf.get_file_obj(api, project, main_file)
-            main_obj = hf.get_file_obj(api, project, main_file)
+        if main_file in file_dict:
             raise ValueError(
                 f"Index file given. Update options file to include {main_file} instead of {cur_input}"
             )
-        except FileNotFoundError as exc:
-            raise ValueError(
-                f"Main file {main_file} for index {cur_input} was not found"
-            ) from exc
+        raise ValueError(
+            f"Main file {main_file} for index {cur_input} was not found"
+        )
 
-    return hf.get_file_obj(api, project, cur_input)
+    try:
+        return file_dict[cur_input]
+    except KeyError as exc:
+        raise FileNotFoundError(
+            f"ERROR: File {cur_input} not found in project {project}"
+        ) from exc
 
 
 def parse_app_id(app):
@@ -300,9 +303,9 @@ def create_task_script(profile, out, options_file, task_inputs_json):
     username = api.users.me().username
     # parse options file and create tasks
     task_ids = []
-    file_ids = {}
     out_lines = []
     new_cols = ["task_id", "created_by"]
+    all_project_files = {}
     base_names = {}
     our_app = None
     workflow_inputs = None
@@ -336,7 +339,13 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                 line_split = line.strip().split("\t")
                 app = line_split[app_index]
                 if our_app is None:
+                    # first time seeing an app, get all files in project and parse workflow inputs
                     our_app = app
+                    project, _ = parse_app_id(app)
+                    all_project_files = hf.get_all_files(api, project)
+                    # store all project files in a dictionary for faster lookup
+                    # dictionary form: {file_name: whole file_obj}
+                    all_project_file_dict = {f.name: f for f in all_project_files}
                 elif our_app != app:
                     raise ValueError(
                         f"App {app} does not match previous app {our_app}. Please use the same app for all tasks."
@@ -357,17 +366,14 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                         if option not in array_inputs:
                             cur_input = line_split[task_options.index(option)]
                             if workflow_inputs[option] == "file":
-                                if cur_input in file_ids:
-                                    task_inputs[option] = file_ids[cur_input]
-                                else:
-                                    my_id = wrap_file_obj(
-                                        api,
-                                        project,
-                                        cur_input,
-                                        option in secondary_files,
-                                    )
-                                    task_inputs[option] = my_id
-                                    file_ids[cur_input] = my_id
+                                my_id = wrap_file_obj(
+                                    api,
+                                    project,
+                                    cur_input,
+                                    all_project_file_dict,
+                                    option in secondary_files,
+                                )
+                                task_inputs[option] = my_id
                             elif workflow_inputs[option] == "bool":
                                 task_inputs[option] = (
                                     cur_input.strip().lower() == "true"
@@ -384,19 +390,14 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                             ].split(",")
                             for i in range(len(task_inputs[option])):
                                 if workflow_inputs[option] == "file":
-                                    if task_inputs[option][i] in file_ids:
-                                        task_inputs[option][i] = file_ids[
-                                            task_inputs[option][i]
-                                        ]
-                                    else:
-                                        my_id = wrap_file_obj(
-                                            api,
-                                            project,
-                                            task_inputs[option][i],
-                                            option in secondary_files,
-                                        )
-                                        file_ids[task_inputs[option][i]] = my_id
-                                        task_inputs[option][i] = my_id
+                                    my_id = wrap_file_obj(
+                                        api,
+                                        project,
+                                        task_inputs[option][i],
+                                        all_project_file_dict,
+                                        option in secondary_files,
+                                    )
+                                    task_inputs[option][i] = my_id
                                 elif workflow_inputs[option] == "bool":
                                     task_inputs[option][i] = (
                                         task_inputs[option][i].strip().lower() == "true"
@@ -416,6 +417,9 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                     task_name = f"{task_name}_{task_inputs["output_basename"]}"
                 else:
                     task_name = f"{task_name}_{line_num}"
+
+                # for developement only:
+                task_name = f"NEW_{task_name}"
 
                 # call api and store task_id
                 new_task = api.tasks.create(

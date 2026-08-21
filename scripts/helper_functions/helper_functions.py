@@ -55,7 +55,7 @@ def get_all_files(api, project) -> list:
     - api: api obejct
     - project: project name
     Returns:
-    -
+    - list of file objects in the project and subfolders
     """
     all_files = []
 
