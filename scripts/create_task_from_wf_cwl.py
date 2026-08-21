@@ -7,7 +7,7 @@ import sys
 import datetime
 import time
 import warnings
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from sevenbridges import Api
 from helper_functions import helper_functions as hf
@@ -333,7 +333,7 @@ def create_task_script(profile, out, options_file, task_inputs_json):
 
     username = api.users.me().username
     # parse options file and create tasks
-    task_ids = []
+    task_ids_by_row = {}
     out_lines = []
     task_specs = []
     new_cols = ["task_id", "created_by"]
@@ -473,44 +473,82 @@ def create_task_script(profile, out, options_file, task_inputs_json):
 
             line_num += 1
 
-    # Task creation and output updates are independent across rows. map() keeps
-    # results in input order while the API calls run concurrently.
+    failed_rows = []
+    saved_tasks = {}
+    task_file = f"{out}_task_ids.txt"
+    with open(task_file, "w"):
+        pass
+
+    # Submit all rows concurrently, but handle each result as soon as it is
+    # available so successful IDs are durable even if another row fails.
     if task_specs:
         worker_count = min(TASK_API_WORKERS, len(task_specs))
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            created_tasks = list(
-                executor.map(
-                    lambda task_spec: create_task_from_spec(api, task_spec), task_specs
-                )
-            )
+            create_futures = {
+                executor.submit(create_task_from_spec, api, task_spec): index
+                for index, task_spec in enumerate(task_specs)
+            }
+            created_tasks = {}
+            with open(task_file, "a") as task_handle:
+                for future in as_completed(create_futures):
+                    row_index = create_futures[future]
+                    try:
+                        new_task = future.result()
+                    except Exception as exc:
+                        failed_rows.append((row_index, exc))
+                        continue
+                    created_tasks[row_index] = new_task
+                    task_ids_by_row[row_index] = new_task.id
+                    task_handle.write(f"{new_task.id}\n")
+                    task_handle.flush()
 
-            if base_names:
-                saved_tasks = list(
-                    executor.map(
-                        save_task_outputs,
-                        ((task, tuple(base_names)) for task in created_tasks),
-                    )
+            save_futures = {
+                executor.submit(
+                    save_task_outputs,
+                    (task, tuple(base_names)),
+                ): row_index
+                for row_index, task in created_tasks.items()
+                if base_names
+            }
+            if not base_names:
+                saved_tasks = {
+                    row_index: (task, {})
+                    for row_index, task in created_tasks.items()
+                }
+            for future in as_completed(save_futures):
+                row_index = save_futures[future]
+                try:
+                    saved_tasks[row_index] = future.result()
+                except Exception as exc:
+                    failed_rows.append((row_index, exc))
+
+    if failed_rows:
+        failed_file = f"{out}_failed_rows.txt"
+        with open(failed_file, "w") as handle:
+            for row_index, exc in sorted(failed_rows):
+                handle.write(
+                    f"Input row {row_index + 2}: {out_lines[row_index + 1]}\n"
+                    f"Error: {exc}\n\n"
                 )
-            else:
-                saved_tasks = [(task, {}) for task in created_tasks]
-    else:
-        saved_tasks = []
+        raise click.ClickException(
+            f"{len(failed_rows)} task row(s) failed. Successful task IDs were saved to "
+            f"{task_file}; failed rows were saved to {failed_file}."
+        )
 
     task_lines = out_lines[:1]
-    for original_line, (new_task, output_values) in zip(out_lines[1:], saved_tasks):
+    for row_index, original_line in enumerate(out_lines[1:]):
+        new_task, output_values = saved_tasks[row_index]
         print(f"{new_task.name}, {new_task.status}, {new_task.id}")
-        task_ids.append(new_task.id)
         task_lines.append(
             f"{original_line}\t{new_task.id}\t{username}\t"
             + "\t".join(output_values[opt] for opt in base_names)
         )
     out_lines = task_lines
 
-    # output task ids to file
-    task_file = f"{out}_task_ids.txt"
+    # rewrite task IDs in input order after all requests succeed
     with open(task_file, "w") as f:
-        for task_id in task_ids:
-            f.write(f"{task_id}\n")
+        for row_index in sorted(task_ids_by_row):
+            f.write(f"{task_ids_by_row[row_index]}\n")
 
     # rewrite options file with new columns for
     # task id, creator, and updated output basenames
