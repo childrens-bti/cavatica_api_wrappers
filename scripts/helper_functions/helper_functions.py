@@ -27,13 +27,13 @@ def get_all_files_folder(api, folder) -> list:
         raise ValueError(f"ERROR: File {folder.name} is not a folder")
     
     # get all of the files in a folder
-    all_files.extend(folder.list_files(limit=LIMIT))
-    keep_going = True
-    while keep_going:
-        folder_files = folder.list_files(limit=LIMIT, offset=len(all_files))
+    folder_files = folder.list_files(limit=LIMIT)
+    all_files.extend(folder_files)
+    received = LIMIT
+    while received < folder_files.total:
+        folder_files = folder.list_files(limit=LIMIT, offset=received)
         all_files.extend(folder_files)
-        if len(all_files) >= folder_files.total:
-            keep_going = False
+        received += LIMIT
 
     # check if any of the files are a folder
     for file in all_files:
@@ -43,6 +43,7 @@ def get_all_files_folder(api, folder) -> list:
             all_files.extend(folder_files)
             while received < folder_files.total:
                 folder_files = file.list_files(limit=LIMIT, offset=received)
+                all_files.extend(folder_files)
                 received += LIMIT
 
     return all_files
@@ -55,7 +56,7 @@ def get_all_files(api, project) -> list:
     - api: api obejct
     - project: project name
     Returns:
-    -
+    - list of file objects in the project and subfolders
     """
     all_files = []
 
@@ -63,19 +64,12 @@ def get_all_files(api, project) -> list:
     project_obj = api.projects.get(id=project)
 
     # query project for all files using pagination
-    received = LIMIT
     project_files = project_obj.get_files(limit=LIMIT)
     all_files.extend(project_files)
-    keep_going = True
-    last_id = all_files[-1].id
-    # while received < project_files.total:
-    while keep_going:
+    received = LIMIT
+    while received < project_files.total:
         project_files = project_obj.get_files(limit=LIMIT, offset=received)
         all_files.extend(project_files)
-        if all_files[-1].id == last_id:
-            keep_going = False
-        else:
-            last_id = all_files[-1].id
         received += LIMIT
 
     # check if any of the files are a folder
@@ -86,6 +80,7 @@ def get_all_files(api, project) -> list:
             all_files.extend(folder_files)
             while received < folder_files.total:
                 folder_files = file.list_files(limit=LIMIT, offset=received)
+                all_files.extend(folder_files)
                 received += LIMIT
 
     return all_files
