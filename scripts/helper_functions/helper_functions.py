@@ -63,19 +63,12 @@ def get_all_files(api, project) -> list:
     project_obj = api.projects.get(id=project)
 
     # query project for all files using pagination
-    received = LIMIT
     project_files = project_obj.get_files(limit=LIMIT)
     all_files.extend(project_files)
-    keep_going = True
-    last_id = all_files[-1].id
-    # while received < project_files.total:
-    while keep_going:
+    received = LIMIT
+    while received < project_files.total:
         project_files = project_obj.get_files(limit=LIMIT, offset=received)
         all_files.extend(project_files)
-        if all_files[-1].id == last_id:
-            keep_going = False
-        else:
-            last_id = all_files[-1].id
         received += LIMIT
 
     # check if any of the files are a folder
