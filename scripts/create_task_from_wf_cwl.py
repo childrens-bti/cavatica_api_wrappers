@@ -418,9 +418,6 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                 else:
                     task_name = f"{task_name}_{line_num}"
 
-                # for developement only:
-                task_name = f"NEW_{task_name}"
-
                 # call api and store task_id
                 new_task = api.tasks.create(
                     name=task_name, project=project, app=app, inputs=task_inputs
