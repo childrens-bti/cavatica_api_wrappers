@@ -33,5 +33,8 @@ def get_all_files_project(project, profile, output_file):
         file.write("Name\tid\n")
         file.writelines(f"{item.name}\t{item.id}\n" for item in files)
 
+    print(len(files))
+    print(len({f.id for f in files}))
+
 if __name__ == "__main__":
     get_all_files_project()

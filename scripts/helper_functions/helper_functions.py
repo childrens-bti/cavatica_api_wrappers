@@ -27,13 +27,13 @@ def get_all_files_folder(api, folder) -> list:
         raise ValueError(f"ERROR: File {folder.name} is not a folder")
     
     # get all of the files in a folder
-    all_files.extend(folder.list_files(limit=LIMIT))
-    keep_going = True
-    while keep_going:
-        folder_files = folder.list_files(limit=LIMIT, offset=len(all_files))
+    folder_files = folder.list_files(limit=LIMIT)
+    all_files.extend(folder_files)
+    received = LIMIT
+    while received < folder_files.total:
+        folder_files = folder.list_files(limit=LIMIT, offset=received)
         all_files.extend(folder_files)
-        if len(all_files) >= folder_files.total:
-            keep_going = False
+        received += LIMIT
 
     # check if any of the files are a folder
     for file in all_files:
@@ -43,6 +43,7 @@ def get_all_files_folder(api, folder) -> list:
             all_files.extend(folder_files)
             while received < folder_files.total:
                 folder_files = file.list_files(limit=LIMIT, offset=received)
+                all_files.extend(folder_files)
                 received += LIMIT
 
     return all_files
@@ -79,6 +80,7 @@ def get_all_files(api, project) -> list:
             all_files.extend(folder_files)
             while received < folder_files.total:
                 folder_files = file.list_files(limit=LIMIT, offset=received)
+                all_files.extend(folder_files)
                 received += LIMIT
 
     return all_files
