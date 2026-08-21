@@ -6,6 +6,7 @@ import json
 import sys
 import datetime
 import time
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from sevenbridges import Api
@@ -44,11 +45,17 @@ def wrap_file_obj(api, project, cur_input, file_dict, reject_indices=False):
         )
 
     try:
-        return file_dict[cur_input]
+        matching_files = file_dict[cur_input]
     except KeyError as exc:
         raise FileNotFoundError(
             f"ERROR: File {cur_input} not found in project {project}"
         ) from exc
+    if len(matching_files) > 1:
+        file_ids = ", ".join(file_obj.id for file_obj in matching_files)
+        raise ValueError(
+            f"Duplicate file name {cur_input!r} found for file ids {file_ids}"
+        )
+    return matching_files[0]
 
 
 def parse_app_id(app):
@@ -374,9 +381,12 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                     for file_obj in all_project_files:
                         previous_file = all_project_file_dict.get(file_obj.name)
                         if previous_file is not None:
-                            raise ValueError(
+                            warnings.warn(
                                 f"Duplicate file name {file_obj.name!r} found for file ids "
                                 f"{previous_file.id} and {file_obj.id}"
+                                f"This will be an error if a task tries to use {file_obj.name!r} as an input.",
+                                UserWarning,
+                                stacklevel=2,
                             )
                         all_project_file_dict[file_obj.name] = file_obj
                 elif our_app != app:
