@@ -5,7 +5,6 @@ import csv
 import json
 import sys
 import datetime
-import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
