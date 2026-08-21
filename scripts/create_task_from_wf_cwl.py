@@ -370,7 +370,15 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                     all_project_files = hf.get_all_files(api, project)
                     # store all project files in a dictionary for faster lookup
                     # dictionary form: {file_name: whole file_obj}
-                    all_project_file_dict = {f.name: f for f in all_project_files}
+                    all_project_file_dict = {}
+                    for file_obj in all_project_files:
+                        previous_file = all_project_file_dict.get(file_obj.name)
+                        if previous_file is not None:
+                            raise ValueError(
+                                f"Duplicate file name {file_obj.name!r} found for file ids "
+                                f"{previous_file.id} and {file_obj.id}"
+                            )
+                        all_project_file_dict[file_obj.name] = file_obj
                 elif our_app != app:
                     raise ValueError(
                         f"App {app} does not match previous app {our_app}. Please use the same app for all tasks."
