@@ -11,7 +11,7 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 def load_config(path):
     """Load a task-input JSON object without changing the caller's data."""
     try:
-        with open(path, "r") as handle:
+        with path.open("r", encoding="utf-8") as handle:
             config = json.load(handle)
     except json.JSONDecodeError as exc:
         raise click.ClickException(f"Invalid JSON in {path}: {exc}") from exc
@@ -37,20 +37,6 @@ def enum_values(input_definition):
     return symbols if symbols is not None else []
 
 
-def input_is_required(input_definition):
-    """Return whether an input's CWL type excludes null."""
-    input_type = input_definition.get("type")
-    types = input_type if isinstance(input_type, list) else [input_type]
-    return (
-        bool(types)
-        and "null" not in types
-        and not any(
-            isinstance(candidate, dict) and candidate.get("type") == "null"
-            for candidate in types
-        )
-    )
-
-
 def input_definitions(app):
     """Map input IDs to their raw app definitions."""
     try:
@@ -59,7 +45,33 @@ def input_definitions(app):
         raise click.ClickException(
             "The app response did not contain raw inputs"
         ) from exc
-    return {input_definition["id"]: input_definition for input_definition in inputs}
+    if not isinstance(inputs, list):
+        raise click.ClickException("The app response inputs must be a list")
+
+    definitions = {}
+    for index, input_definition in enumerate(inputs):
+        if not isinstance(input_definition, dict):
+            raise click.ClickException(
+                f"App input at index {index} must be an object"
+            )
+        input_id = input_definition.get("id")
+        if not isinstance(input_id, str) or not input_id.strip():
+            raise click.ClickException(
+                f"App input at index {index} must contain a non-empty string id"
+            )
+        if input_id in definitions:
+            raise click.ClickException(f"Duplicate app input id: {input_id}")
+        definitions[input_id] = input_definition
+    return definitions
+
+
+def input_status(value, fallback, fallback_name, has_fallback):
+    """Describe how a configured value relates to its app fallback."""
+    if has_fallback and value == fallback:
+        return f"matches {fallback_name}"
+    if has_fallback:
+        return f"overrides {fallback_name}"
+    return "explicit (no default or suggested value)"
 
 
 def compare_config(config, definitions):
@@ -80,7 +92,7 @@ def compare_config(config, definitions):
             if has_default
             else definition.get("sbg:suggestedValue")
         )
-        if fallback and type(fallback) is dict and "name" in fallback:
+        if isinstance(fallback, dict) and "name" in fallback:
             fallback = fallback.get("name")
 
         symbols = enum_values(definition)
@@ -91,14 +103,11 @@ def compare_config(config, definitions):
             )
 
         if has_value:
-            status = (
-                f"matches {fallback_name}"
-                if (has_default or has_suggested) and value == fallback
-                else (
-                    f"overrides {fallback_name}"
-                    if (has_default or has_suggested)
-                    else "explicit (no default or suggested value)"
-                )
+            status = input_status(
+                value,
+                fallback,
+                fallback_name,
+                has_default or has_suggested,
             )
             rows.append(
                 (key, status, value, fallback if has_default or has_suggested else "-")
