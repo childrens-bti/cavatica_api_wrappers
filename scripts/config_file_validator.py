@@ -130,8 +130,19 @@ def check_app_defaults(config, profile):
     """Compare CONFIG's inputs with the defaults in its CAVATICA app."""
     app_id, task_inputs = load_config(config)
 
-    api = hf.parse_config(profile)
-    app = api.apps.get(app_id)
+    try:
+        api = hf.parse_config(profile)
+    except Exception as exc:
+        raise click.ClickException(
+            f"Unable to load API credentials for profile {profile!r}: {exc}"
+        ) from exc
+
+    try:
+        app = api.apps.get(app_id)
+    except Exception as exc:
+        raise click.ClickException(
+            f"Unable to retrieve app {app_id!r}: {exc}"
+        ) from exc
 
     # Will eventually check if app is loaded and if not grab and load the official version
     # or would it be better to fail here and launch another runner that loads it?
