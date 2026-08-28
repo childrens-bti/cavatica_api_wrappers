@@ -146,6 +146,12 @@ def bulk_import(project, volume, s3_keys_file, profile, manifest, run):
     """
     api = hf.parse_config(profile)
     project = hf.parse_project(project)
+    try:
+        api.projects.get(id=project)
+    except SbgError as exc:
+        raise click.ClickException(
+            f"Unable to find or access project {project!r}: {exc}"
+        ) from exc
 
     volume_parts = volume.split("/")
     if len(volume_parts) != 2 or not all(volume_parts):
