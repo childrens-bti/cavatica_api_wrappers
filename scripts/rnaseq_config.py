@@ -39,9 +39,9 @@ REQUIRED_MANIFEST_COLUMNS = {
 }
 ORGANISM_COLUMNS = {"organism", "host_organism"}
 WORKFLOW_REPOSITORY = "childrens-bti/kf-rnaseq-workflow-cnh"
-GITHUB_COMMIT_URL = (
+GITHUB_MASTER_COMMIT_URL = (
     "https://api.github.com/repos/"
-    f"{WORKFLOW_REPOSITORY}/commits/main"
+    f"{WORKFLOW_REPOSITORY}/commits/master"
 )
 
 
@@ -288,17 +288,17 @@ def repository_matches(value: str | None) -> bool:
     }
 
 
-def app_commit_matches_main(
+def app_commit_matches_master(
     app_commit: str | None,
-    main_commit: str | None,
+    master_commit: str | None,
 ) -> bool:
-    """Compare a full GitHub SHA with either a full or abbreviated app SHA."""
-    if not app_commit or not main_commit:
+    """Compare a GitHub master SHA with a full or abbreviated app SHA."""
+    if not app_commit or not master_commit:
         return False
     app_commit = app_commit.strip().lower()
-    main_commit = main_commit.strip().lower()
+    master_commit = master_commit.strip().lower()
     return bool(re.fullmatch(r"[0-9a-f]{7,40}", app_commit)) and (
-        main_commit.startswith(app_commit)
+        master_commit.startswith(app_commit)
     )
 
 
@@ -478,7 +478,7 @@ def validate_app_commit(
     profile: str,
     source: str = "config",
 ) -> list[Finding]:
-    """Compare a CAVATICA app's recorded source SHA with GitHub main.
+    """Compare a CAVATICA app's recorded source SHA with GitHub master.
 
     This is an authenticated preflight. It does not create, modify, or launch
     a CAVATICA resource.
@@ -569,7 +569,7 @@ def validate_app_commit(
 
     try:
         response = requests.get(
-            GITHUB_COMMIT_URL,
+            GITHUB_MASTER_COMMIT_URL,
             headers={"accept": "application/vnd.github+json"},
             timeout=30,
         )
@@ -577,8 +577,8 @@ def validate_app_commit(
         return [
             Finding(
                 "error",
-                "github-main-request-failed",
-                f"Could not retrieve GitHub main commit: {exc}",
+                "github-master-request-failed",
+                f"Could not retrieve GitHub master commit: {exc}",
                 source=source,
             )
         ]
@@ -586,23 +586,24 @@ def validate_app_commit(
         return [
             Finding(
                 "error",
-                "github-main-unavailable",
-                "GitHub main-commit request returned "
+                "github-master-unavailable",
+                "GitHub master-commit request returned "
                 f"HTTP {response.status_code}.",
                 source=source,
             )
         ]
     try:
-        main_commit = response.json().get("sha")
+        master_commit = response.json().get("sha")
     except ValueError:
-        main_commit = None
-    if not app_commit_matches_main(app_commit, main_commit):
+        master_commit = None
+    if not app_commit_matches_master(app_commit, master_commit):
         return [
             Finding(
                 "error",
                 "app-commit-mismatch",
                 "CAVATICA app commit "
-                f"{app_commit!r} does not match GitHub main {main_commit!r}.",
+                f"{app_commit!r} does not match GitHub master "
+                f"{master_commit!r}.",
                 source=source,
             )
         ]
@@ -610,7 +611,7 @@ def validate_app_commit(
         Finding(
             "info",
             "app-commit-match",
-            f"CAVATICA app commit {app_commit} matches GitHub main.",
+            f"CAVATICA app commit {app_commit} matches GitHub master.",
             source=source,
         )
     ]

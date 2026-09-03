@@ -35,7 +35,7 @@ def main() -> int:
         action="store_true",
         help=(
             "Use CAVATICA credentials and GitHub to confirm the app's "
-            "recorded commit matches the RNA-seq workflow main branch"
+            "recorded commit matches the RNA-seq workflow master branch"
         ),
     )
     parser.add_argument(
