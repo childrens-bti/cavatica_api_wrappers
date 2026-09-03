@@ -20,6 +20,15 @@ PROJECT_ID_RE = re.compile(r"^[^/\s]+/[^/\s]+$")
 APP_ID_RE = re.compile(r"^[^/\s]+/[^/\s]+/[^/\s]+(?:/[^/\s]+)?$")
 ADAPTER_RE = re.compile(r"^[ACGTN]+$", re.IGNORECASE)
 ALLOWED_STRANDNESS = {"default", "fr-stranded", "rf-stranded"}
+CONFIG_METADATA_TYPES = {
+    "organism": "enum",
+    "pdx": "bool",
+    "experimental_strategy": "enum",
+}
+CONFIG_METADATA_ENUMS = {
+    "organism": {"human", "mouse"},
+    "experimental_strategy": {"rna-seq", "ribo-seq"},
+}
 REQUIRED_MANIFEST_COLUMNS = {
     "Bioassay_ID",
     "file_name",
@@ -245,7 +254,8 @@ def validate_config(
     findings: list[Finding] = []
     # Workflow inputs are flattened alongside project and app in the config.
     # This makes the review artifact match the options-file input names.
-    allowed_keys = {"project", "app"} | set(OVERRIDE_TYPES)
+    allowed_keys = {"project", "app"} | set(CONFIG_METADATA_TYPES)
+    allowed_keys |= set(OVERRIDE_TYPES)
     for key in sorted(set(config) - allowed_keys):
         findings.append(
             Finding(
@@ -322,6 +332,30 @@ def validate_config(
 
     for key, value in config.items():
         if key in {"project", "app"}:
+            continue
+        if key in CONFIG_METADATA_TYPES:
+            expected = CONFIG_METADATA_TYPES[key]
+            if not _valid_override_value(value, expected):
+                findings.append(
+                    Finding(
+                        "error",
+                        "metadata-type",
+                        f"{key!r} must be a valid {expected} value.",
+                        source=source,
+                    )
+                )
+            elif key in CONFIG_METADATA_ENUMS and (
+                value not in CONFIG_METADATA_ENUMS[key]
+            ):
+                findings.append(
+                    Finding(
+                        "error",
+                        "metadata-value",
+                        f"{key!r} must be one of: "
+                        f"{', '.join(sorted(CONFIG_METADATA_ENUMS[key]))}.",
+                        source=source,
+                    )
+                )
             continue
         expected = profile.allowed_overrides.get(key)
         if expected is None:
