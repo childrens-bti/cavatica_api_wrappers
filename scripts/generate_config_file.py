@@ -126,6 +126,10 @@ def build_config(rows, app_id):
     Build the config json.
     """
     pdx = infer_pdx(rows)
+    if pdx and app_id.split("/")[2] != "cnh-pdx-classification":
+        raise click.ClickException(
+            "PDX manifests must use the cnh-pdx-classification workflow"
+        )
     organism = infer_organism(rows, pdx=pdx)
     config = {
         "app": app_id,
@@ -203,7 +207,7 @@ def generate_config(manifest, app_id, output, profile):
     get_human_refs_from_app(app)
 
     config = build_config(read_manifest(manifest), app_id)
-    output = output or manifest.with_name(f"{manifest.stem}_config.json")
+    output = output or Path.cwd() / f"{manifest.stem}_config.json"
     output.write_text(json.dumps(config, indent=2) + "\n")
     click.echo(f"Wrote {output}")
 
