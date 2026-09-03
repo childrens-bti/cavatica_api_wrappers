@@ -1,0 +1,16 @@
+{
+  "app": "childrens-bti/automations-planning-dev/kfdrc_RNAseq_workflow/0",
+  "experimental_strategy": "rna-seq",
+  "organism": "mouse",
+  "pdx": false,
+  "RNAseQC_GTF_stranded": "gencode.vM38.primary_assembly.rnaseqc.stranded.gtf",
+  "RNAseQC_GTF_unstranded": "gencode.vM38.primary_assembly.rnaseqc.unstranded.gtf",
+  "RSEMgenome": "RSEM_GRCm39_GENCODE38.tar.gz",
+  "STARgenome": "STAR_GRCm39_GENCODE38.tar.gz",
+  "gtf_anno": "gencode.vM38.primary_assembly.annotation.gtf",
+  "kallisto_idx": "RSEM_GRCm39_GENCODE38.transcripts.kallisto.idx",
+  "reference_fasta": "GRCm39.vM38.primary_assembly.genome.fa",
+  "run_t1k": false,
+  "run_rmats": false,
+  "run_fusions": false
+}

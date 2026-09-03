@@ -1,0 +1,16 @@
+{
+  "app": "childrens-bti/automations-planning-dev/kfdrc_RNAseq_workflow/0",
+  "experimental_strategy": "rna-seq",
+  "organism": "human",
+  "pdx": false,
+  "reference_fasta": "GRCh38.primary_assembly.genome.fa",
+  "gtf_anno": "gencode.v39.primary_assembly.annotation.gtf",
+  "STARgenome": "STAR_2.7.10a_GENCODE39.tar.gz",
+  "FusionGenome": "GRCh38_v39_CTAT_lib_Mar242022.CUSTOM.tar.gz",
+  "RNAseQC_GTF": "gencode.v39.primary_assembly.rnaseqc.stranded.gtf",
+  "kallisto_idx": "RSEM_GENCODE39.transcripts.kallisto.idx",
+  "RSEMgenome": "RSEM_GENCODE39.tar.gz",
+  "fusion_annotator_ref": "GRCh38_v39_fusion_annot_custom.tar.gz",
+  "hla_rna_ref_seqs": "hla_v3.43.0_gencode_v39_rna_seq.fa",
+  "hla_rna_gene_coords": "hla_v3.43.0_gencode_v39_rna_coord.fa"
+}
