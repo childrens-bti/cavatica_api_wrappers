@@ -1,9 +1,87 @@
 import click
 from sevenbridges.errors import SbgError
 from helper_functions import helper_functions as hf
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 CHUNK_SIZE = 100  # API allows up to 100 import items per call
+
+
+def parse_s3_uri(uri):
+    """Return the bucket and object key from an S3 URI."""
+    parsed = urlparse(str(uri))
+    key = parsed.path.lstrip("/")
+    if parsed.scheme != "s3" or not parsed.netloc or not key:
+        raise click.BadParameter(f"Invalid S3 URI: {uri}")
+    return parsed.netloc, key
+
+
+def parse_manifest(manifest_path):
+    """
+    Parse manifest file combining s3 path and file name columns.
+
+    Inputs:
+        manifest_path: str, path to the manifest file (CSV or TSV)
+    Returns:
+        List of S3 key paths/objects
+    """
+    import boto3
+    import pandas as pd
+
+    # Determine the file type based on the extension
+    if manifest_path.endswith(".csv"):
+        df = pd.read_csv(manifest_path)
+    elif manifest_path.endswith(".tsv"):
+        df = pd.read_csv(manifest_path, sep="\t")
+    else:
+        raise ValueError("Manifest file must be either CSV or TSV format.")
+
+    # Check for required columns
+    required_columns = ["file_name", "aws_s3_path"]
+    for col in required_columns:
+        if col not in df.columns:
+            raise ValueError(f"Manifest file is missing required column: {col}")
+
+    # Combine s3_path and file_name to create full S3 key paths
+    s3_keys = df.apply(
+        lambda row: f"{row['aws_s3_path'].rstrip('/')}/{row['file_name']}", axis=1
+    ).tolist()
+
+    parsed_s3_keys = [
+        (s3_uri, *parse_s3_uri(s3_uri)) for s3_uri in s3_keys
+    ]
+
+    # Verify objects concurrently since each existence check is a network call.
+    s3 = boto3.client("s3")
+
+    def object_exists(parsed_s3_key):
+        s3_uri, bucket, key = parsed_s3_key
+        try:
+            s3.head_object(Bucket=bucket, Key=key)
+            return None
+        except Exception as error:
+            return s3_uri, error
+
+    worker_count = min(32, len(s3_keys)) or 1
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        missing = [
+            result for result in executor.map(object_exists, parsed_s3_keys) if result
+        ]
+
+    if missing:
+        details = ", ".join(uri for uri, _ in missing[:10])
+        if len(missing) > 10:
+            details += f", ... ({len(missing)} total)"
+        raise ValueError(
+            f"S3 object(s) not found or inaccessible: {details} \n first check that you are logged in to AWS"
+        )
+
+    # Return the validated object keys without the bucket or s3:// prefix.
+    s3_keys = [key for _, _, key in parsed_s3_keys]
+
+    return s3_keys
 
 
 def load_s3_keys(file_path):
@@ -40,8 +118,6 @@ def build_import_item(volume, s3_key_object, project):
 @click.option(
     "--s3-keys-file",
     "s3_keys_file",
-    required=True,
-    type=click.Path(exists=True),
     help=(
         "Text file containing S3 object keys (file paths), one per line. This is NOT an AWS authentication/access key , use S3 object paths (e.g. path/within/volume/file.raw)."
     ),
@@ -53,12 +129,16 @@ def build_import_item(volume, s3_key_object, project):
     help="Credentials profile to use e.g. cavatica or turbo",
 )
 @click.option(
+    "--manifest",
+    help="Path to a manifest file (CSV or TSV) containing S3 keys and metadata. If provided, the script will read S3 keys from the manifest instead of a separate text file.",
+)
+@click.option(
     "--run",
     is_flag=True,
     default=False,
     help="Actually submit the imports. Without this flag, the script only does a dry run.",
 )
-def bulk_import(project, volume, s3_keys_file, profile, run):
+def bulk_import(project, volume, s3_keys_file, profile, manifest, run):
     """
     Bulk import files from an S3-backed volume into a Cavatica project.
     The script reads S3 keys from a text file, groups them into batches of 100,
@@ -66,8 +146,30 @@ def bulk_import(project, volume, s3_keys_file, profile, run):
     """
     api = hf.parse_config(profile)
     project = hf.parse_project(project)
+    try:
+        api.projects.get(id=project)
+    except SbgError as exc:
+        raise click.ClickException(
+            f"Unable to find or access project {project!r}: {exc}"
+        ) from exc
 
-    s3_keys = load_s3_keys(s3_keys_file)
+    volume_parts = volume.split("/")
+    if len(volume_parts) != 2 or not all(volume_parts):
+        raise ValueError(
+            f"ERROR: Volume {volume} is not in the correct format, please provide a volume ID in the format 'owner/volume-name'"
+        )
+
+    if manifest and s3_keys_file:
+        raise ValueError(
+            "Please provide either a manifest file or an S3 keys file, not both."
+        )
+    elif s3_keys_file:
+        s3_keys = load_s3_keys(s3_keys_file)
+    elif manifest:
+        s3_keys = parse_manifest(manifest)
+    else:
+        raise ValueError("Please provide either a manifest file or an S3 keys file.")
+
     all_items = [build_import_item(volume, key, project) for key in s3_keys]
     chunks = list(chunk_list(all_items, CHUNK_SIZE))
 
@@ -78,7 +180,9 @@ def bulk_import(project, volume, s3_keys_file, profile, run):
         click.echo("[dry-run] Nothing was submitted.")
         return
 
-    for i, chunk in enumerate(chunks, start=1):
+    for i, chunk in enumerate(
+        tqdm(chunks, desc="Submitting chunks", unit="chunk"), start=1
+    ):
         click.echo(f"Submitting chunk {i}/{len(chunks)} with {len(chunk)} item(s)...")
         try:
             api.imports.bulk_submit(imports=chunk)

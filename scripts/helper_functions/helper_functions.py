@@ -354,6 +354,12 @@ def bulk_export_files(api, files, volume, location, overwrite=True, copy_only=Fa
 def parse_project(project):
     """
     Parse the project id or url and return just the id
+
+    Inputs:
+    - project: project id or url
+
+    Returns:
+    - project id in the format "user/project"
     """
     out_project = None
 

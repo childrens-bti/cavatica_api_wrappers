@@ -28,7 +28,6 @@ def find_file(project, profile):
 
     # check each file's storage.type
     for file in all_files:
-
         # check if it's a folder
         if file.is_folder() == True:
             continue

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# This script is deprecated after we updated the manifests created in the data-modeling
+# repo. This still might be a useful starting point for other uses.
+
 # This script imports data from a manifest file into a Cavatica project.
 # The script only imports files from AWS and doesn't work on DRS files
 # or files that are on a different cloud platform.
