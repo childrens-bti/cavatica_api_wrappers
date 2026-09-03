@@ -1,4 +1,5 @@
 {
+  "project": "childrens-bti/automations-planning-dev",
   "app": "childrens-bti/automations-planning-dev/kfdrc_RNAseq_workflow/0",
   "experimental_strategy": "rna-seq",
   "organism": "human",
