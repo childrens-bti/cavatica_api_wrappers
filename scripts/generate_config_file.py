@@ -37,6 +37,26 @@ ORGANISM_ALIASES = {
     "mouse": "mouse",
 }
 
+# this might move into the DB
+EXP_STRAT_WF_MAP = {
+    "RNA-seq": [
+        "kfdrc_RNAseq_workflow",
+        "rmats_wf",
+        "cnh-pdx-classification",
+        "kfdrc-bcf-call",
+        "impact-trial-cwl",
+        "kfdrc-ngs-checkmate-wf",
+    ],
+    "Ribo-seq": [
+        "kfdrc_RNAseq_workflow",
+        "rmats_wf",
+        "cnh-pdx-classification",
+        "kfdrc-bcf-call",
+        "impact-trial-cwl",
+        "kfdrc-ngs-checkmate-wf",
+    ],
+}
+
 
 def parse_app_id(app_id):
     """Validate an app ID and require its revision component."""
@@ -121,18 +141,44 @@ def infer_pdx(rows):
     return "xenograft" in metadata or "pdx" in metadata
 
 
+def validate_experimental_strategy(rows, app_name):
+    strategies = values(rows, "experimental_strategy")
+    incompatible = sorted(
+        strategy
+        for strategy in strategies
+        if app_name
+        not in next(
+            (
+                workflows
+                for name, workflows in EXP_STRAT_WF_MAP.items()
+                if name.casefold() == strategy
+            ),
+            (),
+        )
+    )
+    if incompatible:
+        raise click.ClickException(
+            f"App {app_name!r} is incompatible with experimental_strategy: "
+            f"{', '.join(incompatible)}"
+        )
+
+
 def build_config(rows, app_id):
     """
     Build the config json.
     """
     pdx = infer_pdx(rows)
-    if pdx and app_id.split("/")[2] != "cnh-pdx-classification":
+    app_name = app_id.split("/")[2]
+    validate_experimental_strategy(rows, app_name)
+    if pdx and app_name != "cnh-pdx-classification":
         raise click.ClickException(
             "PDX manifests must use the cnh-pdx-classification workflow"
         )
+    experimental_strategy = next(iter(values(rows, "experimental_strategy")), None)
     organism = infer_organism(rows, pdx=pdx)
     config = {
         "app": app_id,
+        "experimental_strategy": experimental_strategy,
         "organism": organism,
         "pdx": pdx,
         **STANDARD_REFERENCES[organism],
