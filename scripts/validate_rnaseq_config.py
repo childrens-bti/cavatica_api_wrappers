@@ -12,7 +12,7 @@ from rnaseq_config import (
     has_errors,
     load_config,
     read_manifest,
-    validate_app_commit,
+    validate_app_payload_version,
     validate_config,
     validate_manifest,
 )
@@ -31,11 +31,11 @@ def main() -> int:
         help="Reviewed RNA-seq manifest TSV to group into tasks",
     )
     parser.add_argument(
-        "--check-app-commit",
+        "--check-app-version",
         action="store_true",
         help=(
-            "Use CAVATICA credentials and GitHub to confirm the app's "
-            "recorded commit matches the RNA-seq workflow master branch"
+            "Use CAVATICA credentials to require RNA-seq workflow version "
+            "v1.2.4 in the selected app's revision notes"
         ),
     )
     parser.add_argument(
@@ -43,20 +43,25 @@ def main() -> int:
         action="store_true",
         help=(
             "Use the selected CAVATICA app revision's live input schema "
-            "instead of the built-in workflow schema"
+            "after confirming it uses RNA-seq workflow version v1.2.4"
         ),
     )
     parser.add_argument(
         "--profile",
         default="turbo",
-        help="CAVATICA credentials profile for --check-app-commit",
+        help="CAVATICA credentials profile for app checks",
     )
     args = parser.parse_args()
 
     config, findings = load_config(args.config)
     if config is not None:
         app_id = config.get("app")
-        if args.check_cavatica_app and isinstance(app_id, str):
+        app_payload = None
+        version_findings = []
+        if (
+            (args.check_cavatica_app or args.check_app_version)
+            and isinstance(app_id, str)
+        ):
             app_payload, app_findings = fetch_cavatica_app(
                 app_id,
                 args.profile,
@@ -64,6 +69,13 @@ def main() -> int:
             )
             findings.extend(app_findings)
             if app_payload is not None:
+                version_findings = validate_app_payload_version(
+                    app_payload,
+                    str(args.config),
+                )
+                findings.extend(version_findings)
+        if args.check_cavatica_app:
+            if app_payload is not None and not has_errors(version_findings):
                 (
                     input_types,
                     enum_values,
@@ -78,14 +90,8 @@ def main() -> int:
                         enum_values,
                     )
                 )
-            else:
-                findings.extend(validate_config(config, str(args.config)))
         else:
             findings.extend(validate_config(config, str(args.config)))
-        if args.check_app_commit and isinstance(app_id, str):
-            findings.extend(
-                validate_app_commit(app_id, args.profile, str(args.config))
-            )
     if args.manifest and config is not None:
         rows, manifest_findings = read_manifest(args.manifest)
         findings.extend(manifest_findings)

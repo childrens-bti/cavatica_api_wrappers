@@ -39,10 +39,7 @@ REQUIRED_MANIFEST_COLUMNS = {
 }
 ORGANISM_COLUMNS = {"organism", "host_organism"}
 WORKFLOW_REPOSITORY = "childrens-bti/kf-rnaseq-workflow-cnh"
-GITHUB_MASTER_COMMIT_URL = (
-    "https://api.github.com/repos/"
-    f"{WORKFLOW_REPOSITORY}/commits/master"
-)
+REQUIRED_WORKFLOW_VERSION = "v1.2.4"
 
 
 @dataclass(frozen=True)
@@ -288,18 +285,12 @@ def repository_matches(value: str | None) -> bool:
     }
 
 
-def app_commit_matches_master(
-    app_commit: str | None,
-    master_commit: str | None,
-) -> bool:
-    """Compare a GitHub master SHA with a full or abbreviated app SHA."""
-    if not app_commit or not master_commit:
-        return False
-    app_commit = app_commit.strip().lower()
-    master_commit = master_commit.strip().lower()
-    return bool(re.fullmatch(r"[0-9a-f]{7,40}", app_commit)) and (
-        master_commit.startswith(app_commit)
-    )
+def workflow_version_from_revision(value: str | None) -> str | None:
+    """Extract a release tag from a raw tag or git-describe revision value."""
+    if not value:
+        return None
+    match = re.fullmatch(r"(v\d+\.\d+\.\d+)(?:-\d+-g[0-9a-f]+)?", value)
+    return match.group(1) if match else None
 
 
 def fetch_cavatica_app(
@@ -473,89 +464,29 @@ def cavatica_input_schema(
     return input_types, enum_values, findings
 
 
-def validate_app_commit(
+def validate_app_version(
     app_id: str,
     profile: str,
     source: str = "config",
 ) -> list[Finding]:
-    """Compare a CAVATICA app's recorded source SHA with GitHub master.
+    """Require the selected CAVATICA app to use the approved workflow version.
 
     This is an authenticated preflight. It does not create, modify, or launch
     a CAVATICA resource.
     """
-    try:
-        import requests
-    except ImportError:
-        return [
-            Finding(
-                "error",
-                "requests-dependency-missing",
-                "Install requirements.txt to use --check-app-commit.",
-                source=source,
-            )
-        ]
-    credentials = configparser.ConfigParser()
-    credentials.read(Path.home() / ".sevenbridges" / "credentials")
-    if profile not in credentials:
-        return [
-            Finding(
-                "error",
-                "cavatica-profile-missing",
-                f"CAVATICA credentials profile {profile!r} was not found.",
-                source=source,
-            )
-        ]
-    endpoint = credentials[profile].get("api_endpoint", "").rstrip("/")
-    token = credentials[profile].get("auth_token", "")
-    if not endpoint or not token:
-        return [
-            Finding(
-                "error",
-                "cavatica-credentials-missing",
-                f"CAVATICA profile {profile!r} needs api_endpoint and "
-                "auth_token.",
-                source=source,
-            )
-        ]
+    payload, findings = fetch_cavatica_app(app_id, profile, source)
+    if payload is None:
+        return findings
+    return validate_app_payload_version(payload, source)
 
-    headers = {"X-SBG-Auth-Token": token, "accept": "application/json"}
-    try:
-        response = requests.get(
-            f"{endpoint}/apps/{app_id}",
-            headers=headers,
-            timeout=30,
-        )
-    except requests.RequestException as exc:
-        return [
-            Finding(
-                "error",
-                "cavatica-app-request-failed",
-                f"Could not retrieve CAVATICA app: {exc}",
-                source=source,
-            )
-        ]
-    if response.status_code != 200:
-        return [
-            Finding(
-                "error",
-                "cavatica-app-unavailable",
-                f"CAVATICA app request returned HTTP {response.status_code}.",
-                source=source,
-            )
-        ]
-    try:
-        payload = response.json()
-    except ValueError:
-        return [
-            Finding(
-                "error",
-                "cavatica-app-invalid-response",
-                "CAVATICA app response was not valid JSON.",
-                source=source,
-            )
-        ]
+
+def validate_app_payload_version(
+    payload: dict[str, Any],
+    source: str = "config",
+) -> list[Finding]:
+    """Require an already-fetched app payload to use the approved version."""
     notes = payload.get("raw", {}).get("sbg:revisionNotes")
-    repository, app_commit = parse_revision_notes(notes)
+    repository, revision = parse_revision_notes(notes)
     if not repository_matches(repository):
         return [
             Finding(
@@ -567,51 +498,23 @@ def validate_app_commit(
             )
         ]
 
-    try:
-        response = requests.get(
-            GITHUB_MASTER_COMMIT_URL,
-            headers={"accept": "application/vnd.github+json"},
-            timeout=30,
-        )
-    except requests.RequestException as exc:
+    workflow_version = workflow_version_from_revision(revision)
+    if workflow_version != REQUIRED_WORKFLOW_VERSION:
         return [
             Finding(
                 "error",
-                "github-master-request-failed",
-                f"Could not retrieve GitHub master commit: {exc}",
-                source=source,
-            )
-        ]
-    if response.status_code != 200:
-        return [
-            Finding(
-                "error",
-                "github-master-unavailable",
-                "GitHub master-commit request returned "
-                f"HTTP {response.status_code}.",
-                source=source,
-            )
-        ]
-    try:
-        master_commit = response.json().get("sha")
-    except ValueError:
-        master_commit = None
-    if not app_commit_matches_master(app_commit, master_commit):
-        return [
-            Finding(
-                "error",
-                "app-commit-mismatch",
-                "CAVATICA app commit "
-                f"{app_commit!r} does not match GitHub master "
-                f"{master_commit!r}.",
+                "app-version-mismatch",
+                "CAVATICA app version "
+                f"{workflow_version or revision!r} does not match required "
+                f"version {REQUIRED_WORKFLOW_VERSION!r}.",
                 source=source,
             )
         ]
     return [
         Finding(
             "info",
-            "app-commit-match",
-            f"CAVATICA app commit {app_commit} matches GitHub master.",
+            "app-version-match",
+            f"CAVATICA app version {workflow_version} is approved.",
             source=source,
         )
     ]
