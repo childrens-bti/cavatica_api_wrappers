@@ -5,23 +5,25 @@ import csv
 import json
 import sys
 import datetime
-import time
+import warnings
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from sevenbridges import Api
 from helper_functions import helper_functions as hf
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+TASK_API_WORKERS = 8
 
 
-def wrap_file_obj(api, project, cur_input, reject_indices=False):
+def wrap_file_obj(api, project, cur_input, file_dict, reject_indices=False):
     """
-    Wrapper function for get_file_obj.
+    Wrapper function to get file id.
     Tries to handle index files
 
     Inputs:
     - api: sevenbridges Api object
     - project: project id
     - cur_input: file name or id
+    - file_dict: dictionary of file names to file objects
 
     Returns:
     - file_id: file id
@@ -32,18 +34,26 @@ def wrap_file_obj(api, project, cur_input, reject_indices=False):
     if reject_indices and suff in my_indices:
         main_file = path.stem
         print(f"Found index file {cur_input}, trying to get main file {main_file}")
-        try:
-            # return hf.get_file_obj(api, project, main_file)
-            main_obj = hf.get_file_obj(api, project, main_file)
+        if main_file in file_dict:
             raise ValueError(
                 f"Index file given. Update options file to include {main_file} instead of {cur_input}"
             )
-        except FileNotFoundError as exc:
-            raise ValueError(
-                f"Main file {main_file} for index {cur_input} was not found"
-            ) from exc
+        raise ValueError(
+            f"Main file {main_file} for index {cur_input} was not found"
+        )
 
-    return hf.get_file_obj(api, project, cur_input)
+    try:
+        matching_files = file_dict[cur_input]
+    except KeyError as exc:
+        raise FileNotFoundError(
+            f"ERROR: File {cur_input} not found in project {project}"
+        ) from exc
+    if len(matching_files) > 1:
+        file_ids = ", ".join(file_obj.id for file_obj in matching_files)
+        raise ValueError(
+            f"Duplicate file name {cur_input!r} found for file ids {file_ids}"
+        )
+    return matching_files[0]
 
 
 def parse_app_id(app):
@@ -105,6 +115,28 @@ def check_task_errors(task):
             f"Draft task {task.id} was created with validation errors: "
             + json.dumps(task_errors, default=str)
         )
+
+
+def create_task_from_spec(api, task_spec):
+    """Create one draft task from a prepared task specification."""
+    new_task = api.tasks.create(**task_spec)
+    check_task_errors(new_task)
+    return new_task
+
+
+def save_task_outputs(task_and_bases):
+    """Update and save output basenames for one created task."""
+    task, bases = task_and_bases
+    output_values = {}
+    for base in bases:
+        if task.inputs[base] is not None:
+            output_value = f"{task.inputs[base]}_{task.id}"
+        else:
+            output_value = task.id
+        task.inputs[base] = output_value
+        output_values[base] = output_value
+    task.save()
+    return task, output_values
 
 
 def create_task_from_json(
@@ -299,10 +331,11 @@ def create_task_script(profile, out, options_file, task_inputs_json):
 
     username = api.users.me().username
     # parse options file and create tasks
-    task_ids = []
-    file_ids = {}
+    task_ids_by_row = {}
     out_lines = []
+    task_specs = []
     new_cols = ["task_id", "created_by"]
+    all_project_files = {}
     base_names = {}
     our_app = None
     workflow_inputs = None
@@ -336,7 +369,27 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                 line_split = line.strip().split("\t")
                 app = line_split[app_index]
                 if our_app is None:
+                    # first time seeing an app, get all files in project and parse workflow inputs
                     our_app = app
+                    project, _ = parse_app_id(app)
+                    all_project_files = hf.get_all_files(api, project)
+                    # store all project files in a dictionary for faster lookup
+                    # dictionary form: {file_name: [file_obj, ...]}
+                    all_project_file_dict = {}
+                    for file_obj in all_project_files:
+                        matching_files = all_project_file_dict.setdefault(
+                            file_obj.name, []
+                        )
+                        if matching_files:
+                            previous_file = matching_files[-1]
+                            warnings.warn(
+                                f"Duplicate file name {file_obj.name!r} found for file ids "
+                                f"{previous_file.id} and {file_obj.id}. "
+                                f"This will be an error if a task tries to use {file_obj.name!r} as an input.",
+                                UserWarning,
+                                stacklevel=2,
+                            )
+                        matching_files.append(file_obj)
                 elif our_app != app:
                     raise ValueError(
                         f"App {app} does not match previous app {our_app}. Please use the same app for all tasks."
@@ -357,17 +410,14 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                         if option not in array_inputs:
                             cur_input = line_split[task_options.index(option)]
                             if workflow_inputs[option] == "file":
-                                if cur_input in file_ids:
-                                    task_inputs[option] = file_ids[cur_input]
-                                else:
-                                    my_id = wrap_file_obj(
-                                        api,
-                                        project,
-                                        cur_input,
-                                        option in secondary_files,
-                                    )
-                                    task_inputs[option] = my_id
-                                    file_ids[cur_input] = my_id
+                                my_id = wrap_file_obj(
+                                    api,
+                                    project,
+                                    cur_input,
+                                    all_project_file_dict,
+                                    option in secondary_files,
+                                )
+                                task_inputs[option] = my_id
                             elif workflow_inputs[option] == "bool":
                                 task_inputs[option] = (
                                     cur_input.strip().lower() == "true"
@@ -384,19 +434,14 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                             ].split(",")
                             for i in range(len(task_inputs[option])):
                                 if workflow_inputs[option] == "file":
-                                    if task_inputs[option][i] in file_ids:
-                                        task_inputs[option][i] = file_ids[
-                                            task_inputs[option][i]
-                                        ]
-                                    else:
-                                        my_id = wrap_file_obj(
-                                            api,
-                                            project,
-                                            task_inputs[option][i],
-                                            option in secondary_files,
-                                        )
-                                        file_ids[task_inputs[option][i]] = my_id
-                                        task_inputs[option][i] = my_id
+                                    my_id = wrap_file_obj(
+                                        api,
+                                        project,
+                                        task_inputs[option][i],
+                                        all_project_file_dict,
+                                        option in secondary_files,
+                                    )
+                                    task_inputs[option][i] = my_id
                                 elif workflow_inputs[option] == "bool":
                                     task_inputs[option][i] = (
                                         task_inputs[option][i].strip().lower() == "true"
@@ -417,39 +462,94 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                 else:
                     task_name = f"{task_name}_{line_num}"
 
-                # call api and store task_id
-                new_task = api.tasks.create(
-                    name=task_name, project=project, app=app, inputs=task_inputs
+                task_specs.append(
+                    {
+                        "name": task_name,
+                        "project": project,
+                        "app": app,
+                        "inputs": task_inputs,
+                    }
                 )
-                check_task_errors(new_task)
-
-                # update task now that we have task id
-                if base_names:
-                    for base in base_names:
-                        if new_task.inputs[base] is not None:
-                            base_names[base][
-                                "value"
-                            ] = f"{new_task.inputs[base]}_{new_task.id}"
-                            new_task.inputs[base] = base_names[base]["value"]
-                        else:
-                            base_names[base]["value"] = new_task.id
-                            new_task.inputs[base] = base_names[base]["value"]
-
-                    new_task.save()
-
-                print(f"{new_task.name}, {new_task.status}, {new_task.id}")
-                task_ids.append(new_task.id)
-                out_lines.append(
-                    f"{line.strip()}\t{new_task.id}\t{username}\t{"\t".join([base_names[opt]["value"] for opt in base_names])}"
-                )
+                out_lines.append(line.strip())
 
             line_num += 1
 
-    # output task ids to file
+    failed_rows = []
+    saved_tasks = {}
     task_file = f"{out}_task_ids.txt"
+    with open(task_file, "w"):
+        pass
+
+    # Submit all rows concurrently, but handle each result as soon as it is
+    # available so successful IDs are durable even if another row fails.
+    if task_specs:
+        worker_count = min(TASK_API_WORKERS, len(task_specs))
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            create_futures = {
+                executor.submit(create_task_from_spec, api, task_spec): index
+                for index, task_spec in enumerate(task_specs)
+            }
+            created_tasks = {}
+            with open(task_file, "a") as task_handle:
+                for future in as_completed(create_futures):
+                    row_index = create_futures[future]
+                    try:
+                        new_task = future.result()
+                    except Exception as exc:
+                        failed_rows.append((row_index, exc))
+                        continue
+                    created_tasks[row_index] = new_task
+                    task_ids_by_row[row_index] = new_task.id
+                    task_handle.write(f"{new_task.id}\n")
+                    task_handle.flush()
+
+            save_futures = {
+                executor.submit(
+                    save_task_outputs,
+                    (task, tuple(base_names)),
+                ): row_index
+                for row_index, task in created_tasks.items()
+                if base_names
+            }
+            if not base_names:
+                saved_tasks = {
+                    row_index: (task, {})
+                    for row_index, task in created_tasks.items()
+                }
+            for future in as_completed(save_futures):
+                row_index = save_futures[future]
+                try:
+                    saved_tasks[row_index] = future.result()
+                except Exception as exc:
+                    failed_rows.append((row_index, exc))
+
+    if failed_rows:
+        failed_file = f"{out}_failed_rows.txt"
+        with open(failed_file, "w") as handle:
+            for row_index, exc in sorted(failed_rows):
+                handle.write(
+                    f"Input row {row_index + 2}: {out_lines[row_index + 1]}\n"
+                    f"Error: {exc}\n\n"
+                )
+        raise click.ClickException(
+            f"{len(failed_rows)} task row(s) failed. Successful task IDs were saved to "
+            f"{task_file}; failed rows were saved to {failed_file}."
+        )
+
+    task_lines = out_lines[:1]
+    for row_index, original_line in enumerate(out_lines[1:]):
+        new_task, output_values = saved_tasks[row_index]
+        print(f"{new_task.name}, {new_task.status}, {new_task.id}")
+        task_lines.append(
+            f"{original_line}\t{new_task.id}\t{username}\t"
+            + "\t".join(output_values[opt] for opt in base_names)
+        )
+    out_lines = task_lines
+
+    # rewrite task IDs in input order after all requests succeed
     with open(task_file, "w") as f:
-        for task_id in task_ids:
-            f.write(f"{task_id}\n")
+        for row_index in sorted(task_ids_by_row):
+            f.write(f"{task_ids_by_row[row_index]}\n")
 
     # rewrite options file with new columns for
     # task id, creator, and updated output basenames
