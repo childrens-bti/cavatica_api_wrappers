@@ -8,6 +8,7 @@ fields required to form safe per-Bioassay task input groups.
 from __future__ import annotations
 
 import csv
+import configparser
 import json
 import re
 from collections import defaultdict
@@ -37,6 +38,11 @@ REQUIRED_MANIFEST_COLUMNS = {
     "read_pair_number",
 }
 ORGANISM_COLUMNS = {"organism", "host_organism"}
+WORKFLOW_REPOSITORY = "childrens-bti/kf-rnaseq-workflow-cnh"
+GITHUB_COMMIT_URL = (
+    "https://api.github.com/repos/"
+    f"{WORKFLOW_REPOSITORY}/commits/main"
+)
 
 
 @dataclass(frozen=True)
@@ -245,17 +251,388 @@ def _valid_override_value(value: Any, value_type: str) -> bool:
         return isinstance(value, list) and all(
             type(item) is int for item in value
         )
+    if value_type == "float_list":
+        return isinstance(value, list) and all(
+            type(item) in {int, float} for item in value
+        )
+    if value_type == "bool_list":
+        return isinstance(value, list) and all(
+            type(item) is bool for item in value
+        )
     raise ValueError(f"Unknown schema value type: {value_type}")
 
 
+def parse_revision_notes(notes: Any) -> tuple[str | None, str | None]:
+    """Return the source repository and commit from app revision notes."""
+    if not isinstance(notes, str):
+        return None, None
+    values: dict[str, str] = {}
+    for line in notes.splitlines():
+        key, separator, value = line.partition(":")
+        if separator and key.strip().lower() in {"repo", "commit"}:
+            values[key.strip().lower()] = value.strip()
+    return values.get("repo"), values.get("commit")
+
+
+def repository_matches(value: str | None) -> bool:
+    """Accept the repository's common slug, URL, and .git URL spellings."""
+    if not value:
+        return False
+    normalized = value.strip().lower().rstrip("/")
+    if normalized.endswith(".git"):
+        normalized = normalized[:-4]
+    return normalized in {
+        WORKFLOW_REPOSITORY,
+        f"https://github.com/{WORKFLOW_REPOSITORY}",
+        f"git@github.com:{WORKFLOW_REPOSITORY}",
+    }
+
+
+def app_commit_matches_main(
+    app_commit: str | None,
+    main_commit: str | None,
+) -> bool:
+    """Compare a full GitHub SHA with either a full or abbreviated app SHA."""
+    if not app_commit or not main_commit:
+        return False
+    app_commit = app_commit.strip().lower()
+    main_commit = main_commit.strip().lower()
+    return bool(re.fullmatch(r"[0-9a-f]{7,40}", app_commit)) and (
+        main_commit.startswith(app_commit)
+    )
+
+
+def fetch_cavatica_app(
+    app_id: str,
+    profile: str,
+    source: str = "config",
+) -> tuple[dict[str, Any] | None, list[Finding]]:
+    """Retrieve one app revision through the authenticated CAVATICA API."""
+    try:
+        import requests
+    except ImportError:
+        return None, [
+            Finding(
+                "error",
+                "requests-dependency-missing",
+                "Install requirements.txt for CAVATICA app validation.",
+                source=source,
+            )
+        ]
+    credentials = configparser.ConfigParser()
+    credentials.read(Path.home() / ".sevenbridges" / "credentials")
+    if profile not in credentials:
+        return None, [
+            Finding(
+                "error",
+                "cavatica-profile-missing",
+                f"CAVATICA credentials profile {profile!r} was not found.",
+                source=source,
+            )
+        ]
+    endpoint = credentials[profile].get("api_endpoint", "").rstrip("/")
+    token = credentials[profile].get("auth_token", "")
+    if not endpoint or not token:
+        return None, [
+            Finding(
+                "error",
+                "cavatica-credentials-missing",
+                f"CAVATICA profile {profile!r} needs api_endpoint and "
+                "auth_token.",
+                source=source,
+            )
+        ]
+    try:
+        response = requests.get(
+            f"{endpoint}/apps/{app_id}",
+            headers={"X-SBG-Auth-Token": token, "accept": "application/json"},
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        return None, [
+            Finding(
+                "error",
+                "cavatica-app-request-failed",
+                f"Could not retrieve CAVATICA app: {exc}",
+                source=source,
+            )
+        ]
+    if response.status_code != 200:
+        return None, [
+            Finding(
+                "error",
+                "cavatica-app-unavailable",
+                f"CAVATICA app request returned HTTP {response.status_code}.",
+                source=source,
+            )
+        ]
+    try:
+        payload = response.json()
+    except ValueError:
+        return None, [
+            Finding(
+                "error",
+                "cavatica-app-invalid-response",
+                "CAVATICA app response was not valid JSON.",
+                source=source,
+            )
+        ]
+    return payload, []
+
+
+def _array_value_type(value_type: str) -> str | None:
+    array_types = {
+        "file": "file_list",
+        "string": "string_list",
+        "int": "int_list",
+        "float": "float_list",
+        "bool": "bool_list",
+    }
+    return array_types.get(value_type)
+
+
+def _cwl_value_type(cwl_type: Any) -> tuple[str | None, set[str] | None]:
+    """Translate a CAVATICA raw-input CWL type into a JSON value type."""
+    if isinstance(cwl_type, str):
+        normalized = cwl_type.rstrip("?")
+        if normalized.endswith("[]"):
+            item_type, _ = _cwl_value_type(normalized[:-2])
+            return _array_value_type(item_type or ""), None
+        aliases = {
+            "File": "file",
+            "string": "string",
+            "int": "int",
+            "float": "float",
+            "boolean": "bool",
+        }
+        return aliases.get(normalized), None
+    if isinstance(cwl_type, dict):
+        if cwl_type.get("type") == "enum":
+            symbols = cwl_type.get("symbols")
+            if isinstance(symbols, list) and all(
+                isinstance(symbol, str) for symbol in symbols
+            ):
+                return "enum", set(symbols)
+            return None, None
+        if cwl_type.get("type") == "array":
+            item_type, _ = _cwl_value_type(cwl_type.get("items"))
+            return _array_value_type(item_type or ""), None
+        return _cwl_value_type(cwl_type.get("type"))
+    if isinstance(cwl_type, list):
+        members = [member for member in cwl_type if member != "null"]
+        if len(members) == 1:
+            return _cwl_value_type(members[0])
+    return None, None
+
+
+def cavatica_input_schema(
+    payload: dict[str, Any],
+    source: str = "config",
+) -> tuple[dict[str, str], dict[str, set[str]], list[Finding]]:
+    """Extract supported parameter names, types, and enum values from an app."""
+    raw_inputs = payload.get("raw", {}).get("inputs")
+    if not isinstance(raw_inputs, list):
+        return {}, {}, [
+            Finding(
+                "error",
+                "cavatica-app-inputs-missing",
+                "CAVATICA app response has no raw.inputs list.",
+                source=source,
+            )
+        ]
+    input_types: dict[str, str] = {}
+    enum_values: dict[str, set[str]] = {}
+    findings: list[Finding] = []
+    for item in raw_inputs:
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str):
+            findings.append(
+                Finding(
+                    "error",
+                    "cavatica-app-input-invalid",
+                    "CAVATICA app has an input without a string id.",
+                    source=source,
+                )
+            )
+            continue
+        input_id = item["id"]
+        value_type, symbols = _cwl_value_type(item.get("type"))
+        if value_type is None:
+            findings.append(
+                Finding(
+                    "error",
+                    "cavatica-app-input-type-unsupported",
+                    f"App input {input_id!r} has unsupported type "
+                    f"{item.get('type')!r}.",
+                    source=source,
+                )
+            )
+            continue
+        input_types[input_id] = value_type
+        if symbols is not None:
+            enum_values[input_id] = symbols
+    return input_types, enum_values, findings
+
+
+def validate_app_commit(
+    app_id: str,
+    profile: str,
+    source: str = "config",
+) -> list[Finding]:
+    """Compare a CAVATICA app's recorded source SHA with GitHub main.
+
+    This is an authenticated preflight. It does not create, modify, or launch
+    a CAVATICA resource.
+    """
+    try:
+        import requests
+    except ImportError:
+        return [
+            Finding(
+                "error",
+                "requests-dependency-missing",
+                "Install requirements.txt to use --check-app-commit.",
+                source=source,
+            )
+        ]
+    credentials = configparser.ConfigParser()
+    credentials.read(Path.home() / ".sevenbridges" / "credentials")
+    if profile not in credentials:
+        return [
+            Finding(
+                "error",
+                "cavatica-profile-missing",
+                f"CAVATICA credentials profile {profile!r} was not found.",
+                source=source,
+            )
+        ]
+    endpoint = credentials[profile].get("api_endpoint", "").rstrip("/")
+    token = credentials[profile].get("auth_token", "")
+    if not endpoint or not token:
+        return [
+            Finding(
+                "error",
+                "cavatica-credentials-missing",
+                f"CAVATICA profile {profile!r} needs api_endpoint and "
+                "auth_token.",
+                source=source,
+            )
+        ]
+
+    headers = {"X-SBG-Auth-Token": token, "accept": "application/json"}
+    try:
+        response = requests.get(
+            f"{endpoint}/apps/{app_id}",
+            headers=headers,
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        return [
+            Finding(
+                "error",
+                "cavatica-app-request-failed",
+                f"Could not retrieve CAVATICA app: {exc}",
+                source=source,
+            )
+        ]
+    if response.status_code != 200:
+        return [
+            Finding(
+                "error",
+                "cavatica-app-unavailable",
+                f"CAVATICA app request returned HTTP {response.status_code}.",
+                source=source,
+            )
+        ]
+    try:
+        payload = response.json()
+    except ValueError:
+        return [
+            Finding(
+                "error",
+                "cavatica-app-invalid-response",
+                "CAVATICA app response was not valid JSON.",
+                source=source,
+            )
+        ]
+    notes = payload.get("raw", {}).get("sbg:revisionNotes")
+    repository, app_commit = parse_revision_notes(notes)
+    if not repository_matches(repository):
+        return [
+            Finding(
+                "error",
+                "app-repository-mismatch",
+                "App revision notes must identify "
+                f"{WORKFLOW_REPOSITORY!r}; found {repository!r}.",
+                source=source,
+            )
+        ]
+
+    try:
+        response = requests.get(
+            GITHUB_COMMIT_URL,
+            headers={"accept": "application/vnd.github+json"},
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        return [
+            Finding(
+                "error",
+                "github-main-request-failed",
+                f"Could not retrieve GitHub main commit: {exc}",
+                source=source,
+            )
+        ]
+    if response.status_code != 200:
+        return [
+            Finding(
+                "error",
+                "github-main-unavailable",
+                "GitHub main-commit request returned "
+                f"HTTP {response.status_code}.",
+                source=source,
+            )
+        ]
+    try:
+        main_commit = response.json().get("sha")
+    except ValueError:
+        main_commit = None
+    if not app_commit_matches_main(app_commit, main_commit):
+        return [
+            Finding(
+                "error",
+                "app-commit-mismatch",
+                "CAVATICA app commit "
+                f"{app_commit!r} does not match GitHub main {main_commit!r}.",
+                source=source,
+            )
+        ]
+    return [
+        Finding(
+            "info",
+            "app-commit-match",
+            f"CAVATICA app commit {app_commit} matches GitHub main.",
+            source=source,
+        )
+    ]
+
+
 def validate_config(
-    config: dict[str, Any], source: str = "config"
+    config: dict[str, Any],
+    source: str = "config",
+    app_input_types: dict[str, str] | None = None,
+    app_enum_values: dict[str, set[str]] | None = None,
 ) -> list[Finding]:
     findings: list[Finding] = []
     # Workflow inputs are flattened alongside project and app in the config.
     # This makes the review artifact match the options-file input names.
+    workflow_types = (
+        OVERRIDE_TYPES if app_input_types is None else app_input_types
+    )
+    workflow_enums = (
+        ENUM_VALUES if app_enum_values is None else app_enum_values
+    )
     allowed_keys = {"project", "app"} | set(CONFIG_METADATA_TYPES)
-    allowed_keys |= set(OVERRIDE_TYPES)
+    allowed_keys |= set(workflow_types)
     for key in sorted(set(config) - allowed_keys):
         findings.append(
             Finding(
@@ -318,7 +695,7 @@ def validate_config(
         return findings
 
     profile = profile_for_app(app)
-    if profile is None:
+    if profile is None and app_input_types is None:
         findings.append(
             Finding(
                 "error",
@@ -357,7 +734,7 @@ def validate_config(
                     )
                 )
             continue
-        expected = profile.allowed_overrides.get(key)
+        expected = workflow_types.get(key)
         if expected is None:
             findings.append(
                 Finding(
@@ -379,7 +756,8 @@ def validate_config(
             )
             continue
         if (
-            key == "reference_profile"
+            profile is not None
+            and key == "reference_profile"
             and value not in profile.reference_profiles
         ):
             findings.append(
@@ -391,13 +769,13 @@ def validate_config(
                     source=source,
                 )
             )
-        elif key in ENUM_VALUES and value not in ENUM_VALUES[key]:
+        elif key in workflow_enums and value not in workflow_enums[key]:
             findings.append(
                 Finding(
                     "error",
                     "enum-value",
                     f"{key!r} must be one of: "
-                    f"{', '.join(sorted(ENUM_VALUES[key]))}.",
+                    f"{', '.join(sorted(workflow_enums[key]))}.",
                     source=source,
                 )
             )
