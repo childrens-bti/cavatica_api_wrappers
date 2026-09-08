@@ -55,6 +55,12 @@ EXP_STRAT_WF_MAP = {
         "impact-trial-cwl",
         "kfdrc-ngs-checkmate-wf",
     ],
+    "WGS": [
+        "sentieon_alignment_wf",
+        "kfdrc-bcf-call",
+        "impact-trial-cwl",
+        "kfdrc-ngs-checkmate-wf",
+    ],
 }
 
 
@@ -177,14 +183,15 @@ def build_config(rows, app_id):
     experimental_strategy = next(iter(values(rows, "experimental_strategy")), None)
     organism = infer_organism(rows, pdx=pdx)
     config = {
+        "project": "/".join(app_id.split("/")[:2]),
         "app": app_id,
         "experimental_strategy": experimental_strategy,
         "organism": organism,
         "pdx": pdx,
-        **STANDARD_REFERENCES[organism],
     }
     if organism != "human":
         config |= {
+            **STANDARD_REFERENCES[organism],
             "run_t1k": False,
             "run_rmats": False,
             "run_fusions": False,
