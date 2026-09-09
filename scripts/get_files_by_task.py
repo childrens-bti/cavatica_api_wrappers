@@ -10,7 +10,7 @@ from helper_functions import helper_functions as hf
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
-def get_regular_files(api, all_tasks, debug=False):
+def get_regular_files(api, all_tasks, debug=False, allow_incomplete=False):
     """
     Get the file ids of output files from a list of tasks.
     Inputs:
@@ -21,8 +21,11 @@ def get_regular_files(api, all_tasks, debug=False):
     """
     files_to_display = []
     for task in all_tasks:
-        initial_files = []
-        initial_files = check_and_get_files(task)
+        if not allow_incomplete:
+            if not check_task_status(task):
+                continue
+
+        initial_files = get_files_from_task(task)
 
         if debug:
             print(f"Current task id: {task.id}  {task.name}", file=sys.stderr)
@@ -66,34 +69,18 @@ def get_regular_files(api, all_tasks, debug=False):
     return files_to_display
 
 
-def check_and_get_files(task):
+def check_task_status(task):
     """
-    Check that a task is COMPLETED and get files.
+    Check that a task is COMPLETED.
     Inputs:
-    - api object
-    - task id
+    - task object
 
     Returns:
-    - if the task is succesful: a list of output file ids
+    - True if the task is completed, otherwise False
     """
-    files = []
     if task.status == "COMPLETED":
-        # get list of files in output folder
-        for out_key in task.outputs.keys():
-            if type(task.outputs[out_key]) is list:
-                for file in task.outputs[out_key]:
-                    if type(file) is list:
-                        for f in file:
-                            if f is not None:
-                                files.append(f)
-                    else:
-                        if file is not None:
-                            files.append(file)
-            else:
-                if task.outputs[out_key] is not None:
-                    files.append(task.outputs[out_key])
-
-    elif task.status == "DRAFT":
+        return True
+    if task.status == "DRAFT":
         print(
             f"{task.name} is a draft task and has not run yet, skipping",
             file=sys.stderr,
@@ -106,7 +93,35 @@ def check_and_get_files(task):
         print(f"{task.name} is in an unknown state: {task.status}", file=sys.stderr)
         print("Please check the task status and try again, skipping", file=sys.stderr)
 
+    return False
+
+
+def get_files_from_task(task):
+    """Return the output files from a completed task."""
+    files = []
+    # get list of files in output folder
+    for out_key in task.outputs.keys():
+        if type(task.outputs[out_key]) is list:
+            for file in task.outputs[out_key]:
+                if type(file) is list:
+                    for f in file:
+                        if f is not None:
+                            files.append(f)
+                else:
+                    if file is not None:
+                        files.append(file)
+        else:
+            if task.outputs[out_key] is not None:
+                files.append(task.outputs[out_key])
+
     return files
+
+
+def check_and_get_files(task):
+    """Backward-compatible wrapper for checking a task and getting its files."""
+    if not check_task_status(task):
+        return []
+    return get_files_from_task(task)
 
 
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
@@ -125,7 +140,13 @@ def check_and_get_files(task):
     help="Output filename",
     required=True,
 )
-def get_task_files(task_file, task_id, profile, debug, output_file):
+@click.option(
+    "--allow-incomplete",
+    help="Return files from tasks that aren't COMPLETED",
+    is_flag=True,
+    default=False,
+)
+def get_task_files(task_file, task_id, profile, debug, output_file, allow_incomplete):
     """
     Take a task or a list of tasks and find all output files.
     """
@@ -145,7 +166,9 @@ def get_task_files(task_file, task_id, profile, debug, output_file):
                 task_id = line.strip()
                 all_tasks.append(api.tasks.get(id=task_id))
 
-    files_to_display = get_regular_files(api, all_tasks, debug)
+    files_to_display = get_regular_files(
+        api, all_tasks, debug, allow_incomplete=allow_incomplete
+    )
 
     with open(output_file, "w") as out_f:
         out_f.write("file_name\tfile_id\n")
