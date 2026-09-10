@@ -108,6 +108,9 @@ def launch_task(task_file, task_id, profile, limit, wait, max_checks, output_bas
                 except Exception as e:
                     print(f"An error occurred launching this task: {e}")
                     failed_tasks.append(task_id)
+            else:
+                print(f"Task {task_id} is not in DRAFT status, skipping. Current status: {task.status}")
+                failed_tasks.append(task_id)
 
         # check if the tasks are still running
         checks = 0
