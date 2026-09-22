@@ -89,6 +89,7 @@ def export_file_ids(file_ids, profile, volume, location, run):
                     file_path = location
                 else:
                     file_path = f"{location}/{file_path}"
+                file_path = file_path.replace("//", "/")
                 try:
                     if file_path not in file_location_dict:
                         file_location_dict[file_path] = []
