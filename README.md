@@ -314,7 +314,7 @@ Options:
 
 ### Bulk Import Files from S3 Using `bulk_import.py`
 
-The `bulk_import.py` script bulk‑imports files from an S3‑backed Cavatica volume into a specified Cavatica project. It accepts either a text file containing one S3 object key per line or a CSV/TSV manifest. Manifest input combines the `s3_path` and `file_name` columns into the S3 object keys used for import. Do not provide both input types.
+The `bulk_import.py` script bulk‑imports files from an S3‑backed Cavatica volume into a specified Cavatica project. It accepts either a text file containing one S3 object key per line or a CSV/TSV manifest. Manifest input combines the `aws_s3_path` and `file_name` columns into the S3 object keys used for import. Do not provide both input types.
 
 The script batches imports in groups of 100 (the API limit). By default, it runs in `dry‑run` mode and does not submit any imports unless the `--run` flag is provided. S3 object keys are file paths within the volume, not AWS credentials or access keys.
 
@@ -350,7 +350,7 @@ Options:
   --s3-keys-file PATH
       Text file containing S3 object keys (file paths)
   --manifest PATH
-      CSV or TSV manifest containing `s3_path` and `file_name` columns
+      CSV or TSV manifest containing `aws_s3_path` and `file_name` columns
   --profile TEXT
       Profile to use from credentials file
       [default: cavatica]
