@@ -18,8 +18,8 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 # These are the standard references used by the RNA-seq workflow.  Keep this
 # table here until the references can be looked up from DW.
 STANDARD_REFERENCES = {
-    "human": {},
-    "mouse": {
+    "Homo sapiens": {},
+    "Mus musculus": {
         "RNAseQC_GTF_stranded": "gencode.vM38.primary_assembly.rnaseqc.stranded.gtf",
         "RNAseQC_GTF_unstranded": "gencode.vM38.primary_assembly.rnaseqc.unstranded.gtf",
         "RSEMgenome": "RSEM_GRCm39_GENCODE38.tar.gz",
@@ -31,10 +31,10 @@ STANDARD_REFERENCES = {
 }
 
 ORGANISM_ALIASES = {
-    "homo sapiens": "human",
-    "human": "human",
-    "mus musculus": "mouse",
-    "mouse": "mouse",
+    "homo sapiens": "Homo sapiens",
+    "human": "Homo sapiens",
+    "mus musculus": "Mus musculus",
+    "mouse": "Mus musculus",
 }
 
 # this might move into the DB
@@ -189,7 +189,7 @@ def build_config(rows, app_id):
         "organism": organism,
         "pdx": pdx,
     }
-    if organism != "human":
+    if organism != "Homo sapiens":
         config |= {
             **STANDARD_REFERENCES[organism],
             "run_t1k": False,
@@ -213,7 +213,7 @@ def get_human_refs_from_app(app):
         if not suggested:
             continue
         input_id = app_input["id"].rsplit("#", 1)[-1]
-        STANDARD_REFERENCES["human"][input_id] = str(suggested).rsplit("/", 1)[-1]
+        STANDARD_REFERENCES["Homo sapiens"][input_id] = str(suggested).rsplit("/", 1)[-1]
 
 
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
