@@ -187,7 +187,6 @@ def build_config(rows, app_id):
         "app": app_id,
         "experimental_strategy": experimental_strategy,
         "organism": organism,
-        "pdx": pdx,
     }
     if organism != "Homo sapiens":
         config |= {
