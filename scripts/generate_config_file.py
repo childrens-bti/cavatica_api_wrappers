@@ -113,7 +113,7 @@ def infer_organism(rows, pdx=False):
     # PDX manifests can contain both human grafts and mouse control/cell-line
     # material.  The workflow references must follow the graft organism.
     if pdx and "homo sapiens" in organisms:
-        return "human"
+        return "Homo sapiens"
     if len(organisms) != 1:
         raise click.ClickException(
             "Manifest must contain exactly one non-empty organism value; "
