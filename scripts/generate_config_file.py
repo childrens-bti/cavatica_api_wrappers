@@ -43,28 +43,9 @@ EXP_STRAT_WF_MAP = {
         "kfdrc_RNAseq_workflow",
         "rmats_wf",
         "cnh-pdx-classification",
-        "kfdrc-bcf-call",
-        "impact-trial-cwl",
-        "kfdrc-ngs-checkmate-wf",
     ],
     "Ribo-seq": [
-        "da_riboseq_workflow",
         "cnh-pdx-classification",
-        "kfdrc-bcf-call",
-        "impact-trial-cwl",
-        "kfdrc-ngs-checkmate-wf",
-    ],
-    "WGS": [
-        "sentieon_alignment_wf",
-        "kfdrc-bcf-call",
-        "impact-trial-cwl",
-        "kfdrc-ngs-checkmate-wf",
-    ],
-    "WXS": [
-        "sentieon_alignment_wf",
-        "kfdrc-bcf-call",
-        "impact-trial-cwl",
-        "kfdrc-ngs-checkmate-wf",
     ],
 }
 
