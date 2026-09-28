@@ -41,11 +41,6 @@ ORGANISM_ALIASES = {
 EXP_STRAT_WF_MAP = {
     "RNA-seq": [
         "kfdrc_RNAseq_workflow",
-        "rmats_wf",
-        "cnh-pdx-classification",
-    ],
-    "Ribo-seq": [
-        "cnh-pdx-classification",
     ],
 }
 
