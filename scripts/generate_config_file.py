@@ -184,23 +184,6 @@ def build_config(rows, app_id):
     return config
 
 
-def get_human_refs_from_app(app):
-    """Add suggested file inputs from an app to the human references."""
-    for app_input in app.raw.get("inputs", []):
-        input_type = app_input.get("type", "")
-        if "File" not in str(input_type):
-            continue
-        suggested = app_input.get("sbg:suggestedValue")
-        if isinstance(suggested, list):
-            suggested = suggested[0] if suggested else None
-        if isinstance(suggested, dict):
-            suggested = suggested.get("name") or suggested.get("path")
-        if not suggested:
-            continue
-        input_id = app_input["id"].rsplit("#", 1)[-1]
-        STANDARD_REFERENCES["Homo sapiens"][input_id] = str(suggested).rsplit("/", 1)[-1]
-
-
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @click.option(
     "--manifest",
@@ -241,8 +224,6 @@ def generate_config(manifest, app_id, output, profile):
         raise click.ClickException(
             f"Unable to find or access Cavatica app {app_id!r}: {exc}"
         ) from exc
-
-    get_human_refs_from_app(app)
 
     config = build_config(read_manifest(manifest), app_id)
     output = output or Path.cwd() / f"{manifest.stem}_config.json"
