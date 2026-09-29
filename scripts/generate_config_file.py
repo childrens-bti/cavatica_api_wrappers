@@ -5,11 +5,15 @@ Input manifests are created and reviewed in https://github.com/childrens-bti/dat
 """
 
 import csv
+from io import StringIO
 import json
+import os
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 import click
+import requests
 from helper_functions import helper_functions as hf
 
 CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
@@ -58,26 +62,58 @@ def parse_app_id(app_id):
     return "/".join(parts)
 
 
-def read_manifest(path):
+def read_manifest(content, source):
     """Read a CSV or TSV manifest without loading it into a data-frame."""
     try:
-        with path.open(newline="") as handle:
-            header = handle.readline()
-            handle.seek(0)
-            delimiter = "\t" if "\t" in header else ","
-            reader = csv.DictReader(handle, delimiter=delimiter)
-            if not reader.fieldnames:
-                raise click.ClickException("Manifest has no header")
-            rows = [
-                {key.strip(): (value or "").strip() for key, value in row.items()}
-                for row in reader
-                if any((value or "").strip() for value in row.values())
-            ]
+        lines = content.splitlines()
+        header = lines[0] if lines else ""
+        delimiter = "\t" if "\t" in header else ","
+        reader = csv.DictReader(StringIO(content), delimiter=delimiter)
+        if not reader.fieldnames:
+            raise click.ClickException("Manifest has no header")
+        rows = [
+            {key.strip(): (value or "").strip() for key, value in row.items()}
+            for row in reader
+            if any((value or "").strip() for value in row.values())
+        ]
     except csv.Error as exc:
-        raise click.ClickException(f"Could not parse manifest {path}: {exc}") from exc
+        raise click.ClickException(f"Could not parse manifest {source}: {exc}") from exc
     if not rows:
-        raise click.ClickException(f"Manifest contains no data rows: {path}")
+        raise click.ClickException(f"Manifest contains no data rows: {source}")
     return rows
+
+
+def load_manifest(manifest, demo=False):
+    """Load a local demo manifest or a manifest from GitHub's raw host."""
+    if demo:
+        path = Path(manifest)
+        if not path.is_file():
+            raise click.ClickException(
+                "With --demo, --manifest must be a path to a local TSV file"
+            )
+        return read_manifest(path.read_text(), path)
+
+    parsed = urlparse(manifest)
+    if parsed.scheme != "https" or parsed.netloc != "raw.githubusercontent.com":
+        raise click.ClickException(
+            "--manifest must be an HTTPS raw.githubusercontent.com URL; "
+            "use --demo for a local TSV file"
+        )
+    if parsed.query or parsed.fragment:
+        raise click.ClickException(
+            "--manifest must not contain a query string or token; "
+            "use the token-free GitHub raw URL"
+        )
+    github_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    headers = {"Authorization": f"Bearer {github_token}"} if github_token else {}
+    try:
+        response = requests.get(manifest, headers=headers, timeout=30)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise click.ClickException(
+            f"Could not download manifest {manifest}: {exc}"
+        ) from exc
+    return read_manifest(response.text, manifest)
 
 
 def values(rows, column):
@@ -235,7 +271,12 @@ def build_config(rows, app_id):
 @click.option(
     "--manifest",
     required=True,
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="HTTPS raw.githubusercontent.com manifest URL",
+)
+@click.option(
+    "--demo",
+    is_flag=True,
+    help="Allow --manifest to refer to a local TSV file",
 )
 @click.option(
     "--app_id",
@@ -253,7 +294,7 @@ def build_config(rows, app_id):
     default="turbo",
     show_default=True,
 )
-def generate_config(manifest, app_id, output, profile):
+def generate_config(manifest, demo, app_id, output, profile):
     """Generate a prepopulated JSON config from MANIFEST."""
 
     app_id = parse_app_id(app_id)
@@ -272,8 +313,11 @@ def generate_config(manifest, app_id, output, profile):
             f"Unable to find or access Cavatica app {app_id!r}: {exc}"
         ) from exc
 
-    config = build_config(read_manifest(manifest), app_id)
-    output = output or Path.cwd() / f"{manifest.stem}_config.json"
+    config = build_config(load_manifest(manifest, demo=demo), app_id)
+    manifest_stem = (
+        Path(urlparse(manifest).path).stem if not demo else Path(manifest).stem
+    )
+    output = output or Path.cwd() / f"{manifest_stem}_config.json"
     output.write_text(json.dumps(config, indent=2) + "\n")
     click.echo(f"Wrote {output}")
 
