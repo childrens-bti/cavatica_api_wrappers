@@ -130,6 +130,10 @@ def infer_pdx(rows):
 
 def validate_experimental_strategy(rows, app_name):
     strategies = values(rows, "experimental_strategy")
+    if not strategies:
+        raise click.ClickException(
+            "Manifest must contain a non-empty experimental_strategy value"
+        )
     incompatible = sorted(
         strategy
         for strategy in strategies
