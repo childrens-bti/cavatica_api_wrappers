@@ -99,6 +99,16 @@ def load_manifest(manifest, demo=False):
             "--manifest must be an HTTPS raw.githubusercontent.com URL; "
             "use --demo for a local TSV file"
         )
+    path_parts = parsed.path.strip("/").split("/")
+    is_main_branch = len(path_parts) >= 4 and path_parts[2] == "main"
+    is_main_branch_ref = (
+        len(path_parts) >= 6
+        and path_parts[2:5] == ["refs", "heads", "main"]
+    )
+    if not is_main_branch and not is_main_branch_ref:
+        raise click.ClickException(
+            "--manifest must point to a file on the GitHub main branch"
+        )
     if parsed.query or parsed.fragment:
         raise click.ClickException(
             "--manifest must not contain a query string or token; "
