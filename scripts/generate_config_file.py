@@ -110,7 +110,11 @@ def infer_organism(rows, pdx=False):
 
 
 def infer_pdx(rows):
-    """Identify PDX cohorts using an explicit column or standard metadata."""
+    """
+    Identify PDX cohorts using an explicit column or standard metadata.
+    This script will need to be updated since manifests label pdx by
+    the composition and host_organism columns.
+    """
     explicit = values(rows, "pdx")
     if explicit and not explicit <= {"true", "false", "0", "1", "yes", "no"}:
         raise click.ClickException("The pdx column must contain boolean values")
@@ -158,7 +162,11 @@ def build_config(rows, app_id):
     """
     Build the config json.
     """
-    pdx = infer_pdx(rows)
+    # set pdx to false until we can correct the logic
+    # and develop support for pdx samples in the rest
+    # of the harmonization automations.
+    #pdx = infer_pdx(rows)
+    pdx = False
     app_name = app_id.split("/")[2]
     validate_experimental_strategy(rows, app_name)
     if pdx and app_name != "cnh-pdx-classification":
