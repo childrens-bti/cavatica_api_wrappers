@@ -44,6 +44,8 @@ EXP_STRAT_WF_MAP = {
     ],
 }
 
+FRAGMENTED_LIBRARY_PATTERN = re.compile(r"\bfragmented\s+library\b", re.IGNORECASE)
+
 
 def parse_app_id(app_id):
     """Validate an app ID and require its revision component."""
@@ -137,6 +139,21 @@ def validate_experimental_strategy(rows, app_name):
     if not strategies:
         raise click.ClickException(
             "Manifest must contain a non-empty experimental_strategy value"
+        )
+    fragmented_rows = [
+        index + 2
+        for index, row in enumerate(rows)
+        if any(
+            FRAGMENTED_LIBRARY_PATTERN.search(value)
+            for column, value in row.items()
+            if column.casefold() == "library_prep" and value
+        )
+    ]
+    if fragmented_rows and app_name == "kfdrc_RNAseq_workflow":
+        rows_text = ", ".join(str(row) for row in fragmented_rows)
+        raise click.ClickException(
+            "Manifest contains fragmented library sample(s) in row(s) "
+            f"{rows_text}; these should not be processed by the RNA-seq workflow"
         )
     incompatible = sorted(
         strategy
