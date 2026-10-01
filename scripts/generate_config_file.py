@@ -91,7 +91,22 @@ def values(rows, column):
     }
 
 
+def blank_rows(rows, column):
+    """Return manifest row numbers whose value for column is blank or missing."""
+    return [
+        index + 2
+        for index, row in enumerate(rows)
+        if not row.get(column, "").strip()
+    ]
+
+
 def infer_organism(rows, pdx=False):
+    blank_organism_rows = blank_rows(rows, "organism")
+    if blank_organism_rows:
+        rows_text = ", ".join(str(row) for row in blank_organism_rows)
+        raise click.ClickException(
+            f"Manifest has blank organism value(s) in row(s): {rows_text}"
+        )
     organisms = values(rows, "organism")
     # PDX manifests can contain both human grafts and mouse control/cell-line
     # material.  The workflow references must follow the graft organism.
@@ -135,6 +150,13 @@ def infer_pdx(rows):
 
 
 def validate_experimental_strategy(rows, app_name):
+    blank_strategy_rows = blank_rows(rows, "experimental_strategy")
+    if blank_strategy_rows:
+        rows_text = ", ".join(str(row) for row in blank_strategy_rows)
+        raise click.ClickException(
+            "Manifest has blank experimental_strategy value(s) in row(s): "
+            f"{rows_text}"
+        )
     strategies = values(rows, "experimental_strategy")
     if not strategies:
         raise click.ClickException(
