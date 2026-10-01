@@ -140,6 +140,11 @@ def validate_experimental_strategy(rows, app_name):
         raise click.ClickException(
             "Manifest must contain a non-empty experimental_strategy value"
         )
+    if len(strategies) > 1:
+        raise click.ClickException(
+            "Manifest must contain exactly one experimental_strategy value; "
+            f"found: {', '.join(sorted(strategies))}"
+        )
     fragmented_rows = [
         index + 2
         for index, row in enumerate(rows)
@@ -170,6 +175,7 @@ def validate_experimental_strategy(rows, app_name):
             f"App {app_name!r} is incompatible with experimental_strategy: "
             f"{', '.join(incompatible)}"
         )
+    return next(iter(strategies))
 
 
 def build_config(rows, app_id):
@@ -182,12 +188,11 @@ def build_config(rows, app_id):
     #pdx = infer_pdx(rows)
     pdx = False
     app_name = app_id.split("/")[2]
-    validate_experimental_strategy(rows, app_name)
+    experimental_strategy = validate_experimental_strategy(rows, app_name)
     if pdx and app_name != "cnh-pdx-classification":
         raise click.ClickException(
             "PDX manifests must use the cnh-pdx-classification workflow"
         )
-    experimental_strategy = next(iter(values(rows, "experimental_strategy")), None)
     organism = infer_organism(rows, pdx=pdx)
     config = {
         "project": "/".join(app_id.split("/")[:2]),
