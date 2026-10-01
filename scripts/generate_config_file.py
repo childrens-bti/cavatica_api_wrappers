@@ -44,7 +44,7 @@ EXP_STRAT_WF_MAP = {
     ],
 }
 
-FRAGMENTED_LIBRARY_PATTERN = re.compile(r"\bfragmented\s+library\b", re.IGNORECASE)
+FRAGMENTED_RNA_LIBRARY_VALUES = {"rpfs", "fragmented"}
 
 
 def parse_app_id(app_id):
@@ -143,11 +143,8 @@ def validate_experimental_strategy(rows, app_name):
     fragmented_rows = [
         index + 2
         for index, row in enumerate(rows)
-        if any(
-            FRAGMENTED_LIBRARY_PATTERN.search(value)
-            for column, value in row.items()
-            if column.casefold() == "library_prep" and value
-        )
+        if row.get("RNA_library", "").strip().casefold()
+        in FRAGMENTED_RNA_LIBRARY_VALUES
     ]
     if fragmented_rows and app_name == "kfdrc_RNAseq_workflow":
         rows_text = ", ".join(str(row) for row in fragmented_rows)
