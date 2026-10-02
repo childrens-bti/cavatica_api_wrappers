@@ -2,6 +2,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import click
 
@@ -149,7 +150,7 @@ class TestReadManifest(unittest.TestCase):
                 )
 
                 self.assertEqual(
-                    generate_config_file.read_manifest(path),
+                    generate_config_file.read_manifest(path.read_text(), path),
                     [{"organism": "human", "experimental_strategy": "RNA-seq"}],
                 )
 
@@ -159,7 +160,7 @@ class TestReadManifest(unittest.TestCase):
             path.write_text("")
 
             with self.assertRaisesRegex(click.ClickException, "Manifest has no header"):
-                generate_config_file.read_manifest(path)
+                generate_config_file.read_manifest(path.read_text(), path)
 
     def test_rejects_manifest_without_data_rows(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -167,7 +168,26 @@ class TestReadManifest(unittest.TestCase):
             path.write_text("organism\texperimental_strategy\n")
 
             with self.assertRaisesRegex(click.ClickException, "contains no data rows"):
-                generate_config_file.read_manifest(path)
+                generate_config_file.read_manifest(path.read_text(), path)
+
+
+class TestLoadManifest(unittest.TestCase):
+    def test_rejects_dot_segments_in_manifest_url_before_request(self):
+        urls = (
+            "https://raw.githubusercontent.com/owner/repository/main/../feature/manifest.tsv",
+            "https://raw.githubusercontent.com/owner/repository/main/%2e%2e/feature/manifest.tsv",
+            "https://raw.githubusercontent.com/owner/repository/main/%252e%252e/feature/manifest.tsv",
+            "https://raw.githubusercontent.com/owner/repository/main%2f..%2ffeature/manifest.tsv",
+        )
+
+        with patch.object(generate_config_file.requests, "get") as get:
+            for url in urls:
+                with self.subTest(url=url):
+                    with self.assertRaisesRegex(
+                        click.ClickException, "dot path segments"
+                    ):
+                        generate_config_file.load_manifest(url)
+            get.assert_not_called()
 
 
 class TestBuildConfig(unittest.TestCase):

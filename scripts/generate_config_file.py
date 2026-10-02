@@ -10,7 +10,7 @@ import json
 import os
 import re
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import click
 import requests
@@ -83,6 +83,25 @@ def read_manifest(content, source):
     return rows
 
 
+def has_dot_path_segment(path):
+    """Return whether a URL path contains a literal or encoded dot segment.
+
+    Requests normalizes literal ``.`` and ``..`` segments before sending a
+    request. Decode repeatedly so encoded (including double-encoded) dot
+    segments cannot change the path after the branch check.
+    """
+    for segment in path.split("/"):
+        decoded = segment
+        while True:
+            unquoted = unquote(decoded)
+            if unquoted == decoded:
+                break
+            decoded = unquoted
+        if any(part in {".", ".."} for part in decoded.split("/")):
+            return True
+    return False
+
+
 def load_manifest(manifest, demo=False):
     """Load a local demo manifest or a manifest from GitHub's raw host."""
     if demo:
@@ -99,6 +118,8 @@ def load_manifest(manifest, demo=False):
             "--manifest must be an HTTPS raw.githubusercontent.com URL; "
             "use --demo for a local TSV file"
         )
+    if has_dot_path_segment(parsed.path):
+        raise click.ClickException("--manifest must not contain dot path segments")
     path_parts = parsed.path.strip("/").split("/")
     is_main_branch = len(path_parts) >= 4 and path_parts[2] == "main"
     is_main_branch_ref = (
