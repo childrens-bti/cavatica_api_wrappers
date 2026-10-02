@@ -46,9 +46,9 @@ for a cohort workflow from a CSV or TSV manifest. This is a workflow input
 configuration file, not the Seven Bridges credentials file described above.
 The script reads the cohort's `experimental_strategy` and `organism`, validates
 that they are compatible with the selected CAVATICA app, and adds the project
-and app IDs. For human cohorts, suggested file inputs are read from the app;
-for mouse cohorts, the standard reference files are added and incompatible tools
-are disabled.
+and app IDs. For human cohorts, no reference files are added since those references
+are defined by the app's default and suggested values; for mouse cohorts,
+the standard reference files are added and incompatible tools are disabled.
 
 The manifest must contain data rows and should include `organism` and
 `experimental_strategy` columns. PDX manifests may include a `pdx` column (or
@@ -121,7 +121,7 @@ Options:
 
 #### The Options File
 
-The options file is a tsv file with column names corresponding to workflow inputs. It also requires an "app" column which is the app id for the app found in Cavatica; app ids will be in the form "project_creator/project_name/app_name/(optionally revision #)". If an input is found in the options file, the values in that column will be used when creating draft tasks and will override any default or suggested values for that input. For example, if a workflow has an input `reference_fasta`, the values listed in the `reference_fasta` column in the input file will be used and the default value in the workflow will not.
+The options file is a tsv file with column names corresponding to workflow inputs. It also requires an "app" column which is the app id for the app found in Cavatica; app ids will be in the form "project_creator/project_name/app_name/revision #". If an input is found in the options file, the values in that column will be used when creating draft tasks and will override any default or suggested values for that input. For example, if a workflow has an input `reference_fasta`, the values listed in the `reference_fasta` column in the input file will be used and the default value in the workflow will not.
 
 Example options file
 
