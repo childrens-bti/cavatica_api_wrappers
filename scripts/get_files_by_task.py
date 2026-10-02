@@ -97,12 +97,13 @@ def check_task_status(task):
 
 
 def get_files_from_task(task):
-    """Return the output files from a completed task."""
+    """Return the output files from a task, if any are available."""
     files = []
+    outputs = getattr(task, "outputs", None) or {}
     # get list of files in output folder
-    for out_key in task.outputs.keys():
-        if type(task.outputs[out_key]) is list:
-            for file in task.outputs[out_key]:
+    for output in outputs.values():
+        if type(output) is list:
+            for file in output:
                 if type(file) is list:
                     for f in file:
                         if f is not None:
@@ -111,8 +112,8 @@ def get_files_from_task(task):
                     if file is not None:
                         files.append(file)
         else:
-            if task.outputs[out_key] is not None:
-                files.append(task.outputs[out_key])
+            if output is not None:
+                files.append(output)
 
     return files
 
