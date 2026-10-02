@@ -42,7 +42,7 @@ The $HOME/.sevenbridges/credentials file has a simple .ini file format, for exam
 ### Generating a workflow config file
 
 The `generate_config_file.py` script creates a prepopulated JSON configuration
-for a cohort workflow from a CSV or TSV manifest. This is a workflow input
+for a cohort workflow from a CSV or TSV manifest hosted at GitHub. This is a workflow input
 configuration file, not the Seven Bridges credentials file described above.
 The script reads the cohort's `experimental_strategy` and `organism`, validates
 that they are compatible with the selected CAVATICA app, and adds the project
@@ -50,14 +50,20 @@ and app IDs. For human cohorts, no reference files are added since those referen
 are defined by the app's default and suggested values; for mouse cohorts,
 the standard reference files are added and incompatible tools are disabled.
 
-The manifest must contain data rows and should include `organism` and
+The manifest must be provided as an HTTPS `raw.githubusercontent.com` URL,
+contain data rows, and should include `organism` and
 `experimental_strategy` columns. PDX manifests may include a `pdx` column (or
 PDX-related metadata such as `composition`, `tumor_descriptor`, or
 `sample_type`). The app ID must include its revision.
 
+For private repositories, provide a GitHub token through the `GITHUB_TOKEN` or
+`GH_TOKEN` environment variable. The token is sent in an HTTP authorization
+header and should not be added to the manifest URL.
+
 ```bash
+export GITHUB_TOKEN="$(gh auth token)"
 python scripts/generate_config_file.py \
-  --manifest /path/to/cohort_manifest.tsv \
+  --manifest https://raw.githubusercontent.com/childrens-bti/data-modeling/main/output-manifests/itt-1163_IDs_assigned.tsv \
   --app_id username/project/kfdrc_RNAseq_workflow/0 \
   --profile turbo \
   --output cohort_config.json
@@ -82,6 +88,16 @@ For a mouse cohort, the config also contains standard reference filenames and
 sets `run_t1k`, `run_rmats`, and `run_fusions` to `false`. The generated JSON
 can then be supplied to the workflow/task-generation process as its config
 input.
+
+For demonstrations or offline testing, `--demo` allows `--manifest` to be a
+local TSV path:
+
+```bash
+python scripts/generate_config_file.py \
+  --demo \
+  --manifest /path/to/cohort_manifest.tsv \
+  --app_id username/project/kfdrc_RNAseq_workflow/0
+```
 
 To view all options:
 
