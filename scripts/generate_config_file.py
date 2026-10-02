@@ -1,8 +1,7 @@
 """Generate a JSON configuration for a cohort RNA-seq run.
 
-The manifest is currently the source of cohort metadata.  The input format is
-deliberately forgiving because both full manifests and the smaller rerun
-"mini manifests" are tabular files with the same metadata columns.
+The manifest is currently the source of cohort metadata.
+Input manifests are created and reviewed in https://github.com/childrens-bti/data-modeling.
 """
 
 import csv
