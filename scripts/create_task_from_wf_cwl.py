@@ -348,7 +348,7 @@ def create_task_script(profile, out, options_file, task_inputs_json):
         for line in f:
             if line_num == 0:
                 # parse header
-                head_line = line.strip()
+                head_line = line.rstrip("\r\n")
                 task_options = head_line.split("\t")
                 for opt in task_options:
                     if "output_basename" in opt:
@@ -366,8 +366,17 @@ def create_task_script(profile, out, options_file, task_inputs_json):
             else:
                 # create new task reading inputs and converting to expected type
                 task_inputs = {}
-                line_split = line.strip().split("\t")
-                app = line_split[app_index]
+                input_line = line.rstrip("\r\n")
+                line_split = input_line.split("\t")
+                expected_columns = len(task_options) + 1
+                if len(line_split) != expected_columns:
+                    raise ValueError(
+                        f"Options file row {line_num + 1} has {len(line_split)} "
+                        f"columns; expected {expected_columns}"
+                    )
+                app = line_split[app_index].strip()
+                if not app:
+                    raise ValueError(f"App is blank in options file row {line_num + 1}")
                 if our_app is None:
                     # first time seeing an app, get all files in project and parse workflow inputs
                     our_app = app
@@ -409,6 +418,8 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                     else:
                         if option not in array_inputs:
                             cur_input = line_split[task_options.index(option)]
+                            if not cur_input.strip():
+                                continue
                             if workflow_inputs[option] == "file":
                                 my_id = wrap_file_obj(
                                     api,
@@ -429,9 +440,10 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                             else:
                                 task_inputs[option] = cur_input
                         else:
-                            task_inputs[option] = line_split[
-                                task_options.index(option)
-                            ].split(",")
+                            cur_input = line_split[task_options.index(option)]
+                            if not cur_input.strip():
+                                continue
+                            task_inputs[option] = cur_input.split(",")
                             for i in range(len(task_inputs[option])):
                                 if workflow_inputs[option] == "file":
                                     my_id = wrap_file_obj(
@@ -470,7 +482,7 @@ def create_task_script(profile, out, options_file, task_inputs_json):
                         "inputs": task_inputs,
                     }
                 )
-                out_lines.append(line.strip())
+                out_lines.append(input_line)
 
             line_num += 1
 
