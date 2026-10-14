@@ -33,7 +33,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 )
 @click.option(
     "--max_checks",
-    help="Maximum consecutive status checks without a task finishing",
+    help="Maximum status checks per active task before it must finish",
     default=12,
     type=click.IntRange(min=1),
     show_default=True,
@@ -75,25 +75,33 @@ def launch_task(task_file, task_id, profile, limit, wait, max_checks, output_bas
 
     api = hf.parse_config(profile)
     pending_tasks = deque()
-    running_tasks = set()
-    checks_without_progress = 0
+    running_tasks = {}
     if limit == -1:
         print("Running all input tasks without a concurrency limit")
     else:
         print(f"Running up to {limit} tasks at once")
 
-    with open(f"{output_basename}_completed.txt", "a") as comp_f, open(
-        f"{output_basename}_failed.txt", "a"
+    with open(f"{output_basename}_completed.txt", "a+") as comp_f, open(
+        f"{output_basename}_failed.txt", "a+"
     ) as fail_f:
+        comp_f.seek(0)
+        fail_f.seek(0)
+        completed_ids = {line.strip() for line in comp_f if line.strip()}
+        failed_ids = {line.strip() for line in fail_f if line.strip()}
+
         def record_result(task_id, status):
             if status == "COMPLETED":
                 output = comp_f
+                recorded_ids = completed_ids
             elif status in ("FAILED", "ABORTED"):
                 output = fail_f
+                recorded_ids = failed_ids
             else:
                 return False
-            output.write(f"{task_id}\n")
-            output.flush()
+            if task_id not in recorded_ids:
+                output.write(f"{task_id}\n")
+                output.flush()
+                recorded_ids.add(task_id)
             return True
 
         # Inspect every unique input ID before launching anything so existing
@@ -103,7 +111,7 @@ def launch_task(task_file, task_id, profile, limit, wait, max_checks, output_bas
             if task.status == "DRAFT":
                 pending_tasks.append(task_id)
             elif task.status in ("RUNNING", "QUEUED"):
-                running_tasks.add(task_id)
+                running_tasks[task_id] = 0
             elif not record_result(task_id, task.status):
                 print(f"Skipping task {task_id}, status: {task.status}")
 
@@ -125,7 +133,7 @@ def launch_task(task_file, task_id, profile, limit, wait, max_checks, output_bas
                         record_result(task_id, "FAILED")
                         continue
                 if task.status in ("RUNNING", "QUEUED"):
-                    running_tasks.add(task_id)
+                    running_tasks[task_id] = 0
                 elif not record_result(task_id, task.status):
                     print(f"Skipping task {task_id}, status: {task.status}")
 
@@ -134,18 +142,20 @@ def launch_task(task_file, task_id, profile, limit, wait, max_checks, output_bas
 
             print(f"Waiting {wait} minutes before checking task status...")
             time.sleep(wait * 60)
-            finished_tasks = 0
             for task_id in list(running_tasks):
                 task = api.tasks.get(id=task_id)
                 if record_result(task_id, task.status):
-                    running_tasks.remove(task_id)
-                    finished_tasks += 1
+                    del running_tasks[task_id]
+                else:
+                    running_tasks[task_id] += 1
 
-            checks_without_progress = 0 if finished_tasks else checks_without_progress + 1
-            if running_tasks and checks_without_progress >= max_checks:
+            stalled_tasks = sorted(
+                task_id for task_id, checks in running_tasks.items() if checks >= max_checks
+            )
+            if stalled_tasks:
                 raise click.ClickException(
-                    "Maximum consecutive checks without a task finishing reached. "
-                    f"Tasks may be stalled; inspect these active tasks: {', '.join(sorted(running_tasks))}"
+                    f"Maximum status checks per active task reached ({max_checks}). "
+                    f"Tasks may be stalled; inspect these active tasks: {', '.join(stalled_tasks)}"
                 )
 
     print("All tasks processed")

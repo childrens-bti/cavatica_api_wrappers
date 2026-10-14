@@ -172,10 +172,16 @@ python scripts/run_tasks.py \
 
 ## Launching draft tasks
 
-The Sevenbridges API separates creating tasks from launching them. Tasks are first created as drafts allowing for you to inspect them before running. The `run_tasks.py` script launches draft tasks using the draft task id or a file containing a list of task ids. The script will launch a limited number of tasks, wait for those tasks to finsih, output the succesful task ids to an output file and failed tasks to a different file, then launch the next set of tasks. This script should be run on a system that will allow the script to be active the entire time tasks are running. If a batch of tasks does not finish after a set amount of time, this script will stop running and you will have to manually inspect these tasks and determine if they need to be aborted or not.
+The Sevenbridges API separates creating tasks from launching them, so you can inspect draft tasks before running them. Use `scripts/run_tasks.py` with either `--task_id` or `--task_file` (one task ID per line). Blank lines and duplicate IDs are ignored. The script only launches drafts; it cannot create tasks.
+
+Before launching anything, the script checks all input tasks. Existing `QUEUED` and `RUNNING` tasks from the input list count toward `--limit` (default: 50; a positive integer or `-1` for unlimited). After each status check, it launches more drafts to fill available slots without waiting for an entire batch to finish. The limit applies to tasks in the input list, not account-wide instance usage.
+
+Completed task IDs are appended to `<output_basename>_completed.txt`; failed or aborted task IDs and launch failures are appended to `<output_basename>_failed.txt`. The default basename is `task_status`. Tasks already completed, failed, or aborted are also recorded, and other statuses are skipped. Results are flushed to disk as they are recorded. Each output file's existing IDs are loaded at startup so rerunning the script with the same basename does not append duplicate IDs to that file.
+
+Keep the script running while tasks are active. It checks status every `--wait` minutes (default: 60; zero is allowed). Each active task has its own check counter, starting when this invocation begins monitoring it. The script exits with an error if any task remains unfinished after `--max_checks` checks (default: 12; minimum: 1), even if other tasks finish. Finishing on the last allowed check succeeds. Restarting the script starts new counters. The error lists the tasks that reached the limit for manual inspection; the script does not abort them.
 
 ```bash
-$ python run_tasks.py -h
+$ python scripts/run_tasks.py -h
 Usage: run_tasks.py [OPTIONS]
 
   Launch a single task using the task id or launch multiple tasks getting the
@@ -183,18 +189,19 @@ Usage: run_tasks.py [OPTIONS]
   This will only launch draft tasks and cannot create tasks.
 
 Options:
-  --task_file TEXT        File with task ids
-  --task_id TEXT          Task id
-  --profile TEXT          Profile to use from credentials file  [default:
-                          cavatica]
-  --limit INTEGER         Limit number of tasks to run at once, set to -1 to
-                          run all task (not recommended)  [default: 50]
-  --wait INTEGER          Time in minutes to wait between checking task status
-                          [default: 60]
-  --max_checks INTEGER    Maximum number of status checks to perform
-                          [default: 12]
-  --output_basename TEXT  Base name for output files  [default: task_status]
-  -h, --help              Show this message and exit.
+  --task_file TEXT            File with task ids
+  --task_id TEXT              Task id
+  --profile TEXT              Profile to use from credentials file  [default:
+                              cavatica]
+  --limit INTEGER             Limit queued and running tasks from the input
+                              list; -1 means unlimited  [default: 50]
+  --wait INTEGER RANGE        Time in minutes to wait between checking task
+                              status  [default: 60; x>=0]
+  --max_checks INTEGER RANGE  Maximum status checks per active task before it
+                              must finish  [default: 12; x>=1]
+  --output_basename TEXT      Base name for output files  [default:
+                              task_status]
+  -h, --help                  Show this message and exit.
 ```
 
 
@@ -254,20 +261,10 @@ python scripts/{script} -h
 
 For example:
 ```bash
-python scripts/run_tasks.py
-Usage: run_tasks.py [OPTIONS]
-
-  Launch a single task using the task id or launch multiple tasks getting the
-  task ids from input file. Task file is a file with task ids one per line.
-  This will only launch draft tasks and cannot create tasks.
-
-Options:
-  --task_file TEXT  File with task ids
-  --task_id TEXT    Task id
-  --profile TEXT    Profile to use from credentials file  [default: cavatica]
-  --run             Run the task
-  -h, --help        Show this message and exit.
+python scripts/run_tasks.py -h
 ```
+
+See [Launching draft tasks](#launching-draft-tasks) for the current options and behavior.
 
 ## Monitoring Task Completions
 
