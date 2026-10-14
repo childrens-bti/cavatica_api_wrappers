@@ -196,9 +196,9 @@ Options:
   --limit INTEGER             Limit queued and running tasks from the input
                               list; -1 means unlimited  [default: 50]
   --wait INTEGER RANGE        Time in minutes to wait between checking task
-                              status  [default: 60; x>=0]
+                              status  [default: 30; x>=0]
   --max_checks INTEGER RANGE  Maximum status checks per active task before it
-                              must finish  [default: 12; x>=1]
+                              must finish  [default: 24; x>=1]
   --output_basename TEXT      Base name for output files  [default:
                               task_status]
   -h, --help                  Show this message and exit.
