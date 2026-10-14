@@ -27,14 +27,14 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.option(
     "--wait",
     help="Time in minutes to wait between checking task status",
-    default=60,
+    default=30,
     type=click.IntRange(min=0),
     show_default=True,
 )
 @click.option(
     "--max_checks",
     help="Maximum status checks per active task before it must finish",
-    default=12,
+    default=24,
     type=click.IntRange(min=1),
     show_default=True,
 )
