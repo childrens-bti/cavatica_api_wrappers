@@ -1,10 +1,8 @@
 """Run a list of draft tasks getting id from file."""
 
 import click
-import configparser
 import time
-from pathlib import Path
-from sevenbridges import Api
+from collections import deque
 from helper_functions import helper_functions as hf
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -21,7 +19,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 )
 @click.option(
     "--limit",
-    help="Limit number of tasks to run at once, set to -1 to run all task (not recommended)",
+    help="Limit queued and running tasks from the input list; -1 means unlimited",
     default=50,
     type=int,
     show_default=True,
@@ -30,14 +28,14 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
     "--wait",
     help="Time in minutes to wait between checking task status",
     default=60,
-    type=int,
+    type=click.IntRange(min=0),
     show_default=True,
 )
 @click.option(
     "--max_checks",
-    help="Maximum number of status checks to perform",
+    help="Maximum consecutive status checks without a task finishing",
     default=12,
-    type=int,
+    type=click.IntRange(min=1),
     show_default=True,
 )
 @click.option(
@@ -52,94 +50,103 @@ def launch_task(task_file, task_id, profile, limit, wait, max_checks, output_bas
     launch multiple tasks getting the task ids from input file.
     Task file is a file with task ids one per line.
     This will only launch draft tasks and cannot create tasks.
+
+    Technically, this isn't correct. An account can only launch
+    80 instances at a time. Not tasks. Most of our workflows are
+    configured to only launch 2 instances at a time.
+    For now, this is a good enough approximation.
     """
-    # read config file
-    api = hf.parse_config(profile)
+    if limit != -1 and limit < 1:
+        raise click.BadParameter("must be positive or -1", param_hint="--limit")
 
     # figure out which tasks to run
     all_tasks = []
     if task_file and task_id:
-        print("ERROR: Please provide either a task file or a task id")
-        exit(1)
+        raise click.UsageError("Please provide either a task file or a task id")
     elif task_id:
         print(f"Current task id: {task_id}")
         all_tasks = [task_id]
-        task = api.tasks.get(id=task_id)
-        print(f"Current status: {task.status}")
     elif task_file:
         print(f"Launching tasks from file: {task_file}")
         with open(task_file, "r") as f:
-            all_tasks = [line.strip() for line in f]
+            all_tasks = [line.strip() for line in f if line.strip()]
     else:
-        print("ERROR: Please provide either a task file or a task id")
-        exit(1)
+        raise click.UsageError("Please provide either a task file or a task id")
 
-    # start running tasks and keeping track of completed and failed tasks
-    run_tasks = True
-    completed_tasks = []
-    failed_tasks = []
-    print(f"Running up to {limit} tasks at once")
-    while run_tasks:
-        # figure out how many tasks we're running this round
-        running_tasks = 0
-        if limit == -1:
-            tasks_to_run = all_tasks
-            # is this message correct?
-            print("Launching all tasks, status must be monitored manually")
-        else:
-            # this makes tasks_to_run the next 'limit' (ie 50) tasks from all_tasks
-            tasks_to_run = all_tasks[:limit]
+    api = hf.parse_config(profile)
+    pending_tasks = deque()
+    running_tasks = set()
+    checks_without_progress = 0
+    if limit == -1:
+        print("Running all input tasks without a concurrency limit")
+    else:
+        print(f"Running up to {limit} tasks at once")
 
-        running_tasks = []
-        failed_tasks = []
-        completed_tasks = []
+    with open(f"{output_basename}_completed.txt", "a") as comp_f, open(
+        f"{output_basename}_failed.txt", "a"
+    ) as fail_f:
+        def record_result(task_id, status):
+            if status == "COMPLETED":
+                output = comp_f
+            elif status in ("FAILED", "ABORTED"):
+                output = fail_f
+            else:
+                return False
+            output.write(f"{task_id}\n")
+            output.flush()
+            return True
 
-        # run tasks
-        print(f"Launching a batch of {limit} tasks")
-        for task_id in tasks_to_run:
+        # Inspect every unique input ID before launching anything so existing
+        # queued/running tasks later in the file also count against the limit.
+        for task_id in dict.fromkeys(all_tasks):
             task = api.tasks.get(id=task_id)
-            if task.status == "DRAFT" and len(running_tasks) < limit:
-                try:
-                    task.run()
-                    running_tasks.append(task_id)
-                    if task.status not in ["RUNNING", "QUEUED"]:
-                        print(f"Task {task_id} failed to start, status: {task.status}")
-                        failed_tasks.append(task_id)
-                except Exception as e:
-                    print(f"An error occurred launching this task: {e}")
-                    failed_tasks.append(task_id)
+            if task.status == "DRAFT":
+                pending_tasks.append(task_id)
+            elif task.status in ("RUNNING", "QUEUED"):
+                running_tasks.add(task_id)
+            elif not record_result(task_id, task.status):
+                print(f"Skipping task {task_id}, status: {task.status}")
 
-        # check if the tasks are still running
-        checks = 0
-        while running_tasks and checks < max_checks:
-            checks += 1
+        while pending_tasks or running_tasks:
+            # Refill available slots before waiting for the next status check.
+            while pending_tasks and (limit == -1 or len(running_tasks) < limit):
+                task_id = pending_tasks.popleft()
+                task = api.tasks.get(id=task_id)
+                if task.status == "DRAFT":
+                    print(f"Launching task {task_id}")
+                    try:
+                        task.run()
+                    except Exception as e:
+                        print(f"An error occurred launching task {task_id}: {e}")
+                        record_result(task_id, "FAILED")
+                        continue
+                    if task.status not in ("RUNNING", "QUEUED", "COMPLETED", "FAILED", "ABORTED"):
+                        print(f"Task {task_id} failed to start, status: {task.status}")
+                        record_result(task_id, "FAILED")
+                        continue
+                if task.status in ("RUNNING", "QUEUED"):
+                    running_tasks.add(task_id)
+                elif not record_result(task_id, task.status):
+                    print(f"Skipping task {task_id}, status: {task.status}")
+
+            if not running_tasks:
+                break
+
             print(f"Waiting {wait} minutes before checking task status...")
             time.sleep(wait * 60)
-            for task_id in running_tasks[:]:
+            finished_tasks = 0
+            for task_id in list(running_tasks):
                 task = api.tasks.get(id=task_id)
-                if task.status == "COMPLETED":
-                    completed_tasks.append(task_id)
+                if record_result(task_id, task.status):
                     running_tasks.remove(task_id)
-                elif task.status == "FAILED":
-                    failed_tasks.append(task_id)
-                    running_tasks.remove(task_id)
+                    finished_tasks += 1
 
-        # write tasks to files based on status
-        with open(f"{output_basename}_completed.txt", "a") as comp_f:
-            for task_id in completed_tasks:
-                comp_f.write(f"{task_id}\n")
-        with open(f"{output_basename}_failed.txt", "a") as fail_f:
-            for task_id in failed_tasks:
-                fail_f.write(f"{task_id}\n")
-
-        if checks == max_checks:
-            print("Maximum number of checks reached, tasks may be stalled. Consider cancelling.")
-            exit(1)
-
-        # remove these tasks and repeat
-        all_tasks = all_tasks[limit:]
-        if not all_tasks:
-            run_tasks = False
+            checks_without_progress = 0 if finished_tasks else checks_without_progress + 1
+            if running_tasks and checks_without_progress >= max_checks:
+                raise click.ClickException(
+                    "Maximum consecutive checks without a task finishing reached. "
+                    f"Tasks may be stalled; inspect these active tasks: {', '.join(sorted(running_tasks))}"
+                )
 
     print("All tasks processed")
 
