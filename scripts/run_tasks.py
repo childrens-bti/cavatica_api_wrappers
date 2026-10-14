@@ -76,6 +76,7 @@ def launch_task(task_file, task_id, profile, limit, wait, max_checks, output_bas
     api = hf.parse_config(profile)
     pending_tasks = deque()
     running_tasks = {}
+    launch_errors = set()
     if limit == -1:
         print("Running all input tasks without a concurrency limit")
     else:
@@ -126,10 +127,22 @@ def launch_task(task_file, task_id, profile, limit, wait, max_checks, output_bas
                         task.run()
                     except Exception as e:
                         print(f"An error occurred launching task {task_id}: {e}")
-                        record_result(task_id, "FAILED")
-                        continue
+                        # The request may have succeeded before its response failed.
+                        # Fetch a fresh task instead of trusting the local status.
+                        try:
+                            task = api.tasks.get(id=task_id)
+                        except Exception as status_error:
+                            raise click.ClickException(
+                                f"Could not determine remote status after launch error for task "
+                                f"{task_id}: {status_error}. The task may be active; "
+                                "inspect it before retrying."
+                            ) from status_error
+                        print(f"Remote status for task {task_id}: {task.status}")
+                        if task.status in ("FAILED", "ABORTED"):
+                            launch_errors.add(task_id)
                     if task.status not in ("RUNNING", "QUEUED", "COMPLETED", "FAILED", "ABORTED"):
                         print(f"Task {task_id} failed to start, status: {task.status}")
+                        launch_errors.add(task_id)
                         record_result(task_id, "FAILED")
                         continue
                 if task.status in ("RUNNING", "QUEUED"):
@@ -158,6 +171,11 @@ def launch_task(task_file, task_id, profile, limit, wait, max_checks, output_bas
                     f"Tasks may be stalled; inspect these active tasks: {', '.join(stalled_tasks)}"
                 )
 
+    if launch_errors:
+        raise click.ClickException(
+            f"Launch failed for these tasks: {', '.join(sorted(launch_errors))}. "
+            "Inspect them before retrying."
+        )
     print("All tasks processed")
 
 
