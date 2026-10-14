@@ -178,7 +178,7 @@ Before launching anything, the script checks all input tasks. Existing `QUEUED` 
 
 Completed task IDs are appended to `<output_basename>_completed.txt`; failed or aborted task IDs and launch failures are appended to `<output_basename>_failed.txt`. The default basename is `task_status`. Tasks already completed, failed, or aborted are also recorded, and other statuses are skipped. Results are flushed to disk as they are recorded. Each output file's existing IDs are loaded at startup so rerunning the script with the same basename does not append duplicate IDs to that file.
 
-Keep the script running while tasks are active. It checks status every `--wait` minutes (default: 60; zero is allowed). Each active task has its own check counter, starting when this invocation begins monitoring it. The script exits with an error if any task remains unfinished after `--max_checks` checks (default: 12; minimum: 1), even if other tasks finish. Finishing on the last allowed check succeeds. Restarting the script starts new counters. The error lists the tasks that reached the limit for manual inspection; the script does not abort them.
+Keep the script running while tasks are active. It checks status every `--wait` minutes (default: 30; zero is allowed). Each active task has its own check counter, starting when this invocation begins monitoring it. The script exits with an error if any task remains unfinished after `--max_checks` checks (default: 24; minimum: 1), even if other tasks finish. Finishing on the last allowed check succeeds. Restarting the script starts new counters. The error lists the tasks that reached the limit for manual inspection; the script does not abort them.
 
 ```bash
 $ python scripts/run_tasks.py -h
