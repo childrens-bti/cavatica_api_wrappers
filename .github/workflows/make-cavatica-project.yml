@@ -6,7 +6,24 @@ on:
       [opened, reopened]
 
 jobs:
+  get_project_name:
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      project_name: ${{ steps.parse.outputs.project_name }}
+    if: contains(github.event.issue.title, '[Project Creation]')
+    steps:
+      - name: Parse project name from issue body
+        id: parse
+        env:
+          BODY: ${{ github.event.issue.body }}
+        run: |
+          name=$(printf '%s\n' "$BODY" | awk '/^### Project_Name/ {getline; getline; print; exit}' | tr -d '\r')
+          echo "project_name=$name" >> "$GITHUB_OUTPUT"
+
   create_cavatica_project:
+    name: Create project ${{ needs.get_project_name.outputs.project_name }}
+    needs: get_project_name
     runs-on: ubuntu-latest
     environment: cavatica-prod
     permissions:
@@ -14,7 +31,7 @@ jobs:
       issues: write
     strategy:
       matrix:
-        python-version: ['3.12.9']
+        python-version: ['3.12']
     if: contains(github.event.issue.title, '[Project Creation]')
 
     steps:
