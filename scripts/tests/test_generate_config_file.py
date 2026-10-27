@@ -278,6 +278,20 @@ class TestCramReference(unittest.TestCase):
                 cram_reference=self.reference,
             )
 
+    def test_reports_only_manifest_references_differing_from_option(self):
+        with self.assertRaises(click.ClickException) as raised:
+            generate_config_file.build_config(
+                [
+                    self.row("a.cram", "CRAM", self.reference),
+                    self.row("b.cram", "CRAM", "Homo_sapiens_assembly38.fasta"),
+                ],
+                self.app_id,
+                cram_reference=self.reference,
+            )
+
+        message = raised.exception.message
+        self.assertTrue(message.endswith("value(s): Homo_sapiens_assembly38.fasta"))
+
     def test_rejects_cram_reference_without_cram_inputs(self):
         with self.assertRaisesRegex(click.ClickException, "no CRAM inputs"):
             generate_config_file.build_config(

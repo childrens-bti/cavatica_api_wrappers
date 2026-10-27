@@ -194,10 +194,11 @@ def validate_cram_reference(rows, cram_reference=None):
         for _, row in cram_rows
         if (value := row.get("cram_reference", "").strip())
     }
-    if cram_reference and manifest_references - {cram_reference}:
+    mismatched_references = manifest_references - {cram_reference} if cram_reference else set()
+    if mismatched_references:
         raise click.ClickException(
             f"--cram-reference {cram_reference!r} does not match the manifest "
-            f"cram_reference value(s): {', '.join(sorted(manifest_references))}"
+            f"cram_reference value(s): {', '.join(sorted(mismatched_references))}"
         )
     missing_rows = [
         row_number
