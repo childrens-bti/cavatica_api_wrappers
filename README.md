@@ -89,6 +89,21 @@ sets `run_t1k`, `run_rmats`, and `run_fusions` to `false`. The generated JSON
 can then be supplied to the workflow/task-generation process as its config
 input.
 
+If the manifest has CRAM inputs (a `file_format` of `CRAM` or a `.cram` file
+name), pass `--cram-reference` with the filename of the FASTA the CRAMs were
+created with. A CRAM can only be decoded with that exact FASTA, and its `.fai`
+index must be in the project too. The value is written to the config as
+`cram_reference`. The option is not needed when every CRAM row has a manifest
+`cram_reference` value, must match those values when both are given, and is
+rejected for manifests without CRAM inputs:
+
+```bash
+python scripts/generate_config_file.py \
+  --manifest https://raw.githubusercontent.com/childrens-bti/data-modeling/main/output-manifests/<cohort>.tsv \
+  --app_id username/project/kfdrc_RNAseq_workflow/0 \
+  --cram-reference GRCh38.primary_assembly.genome.fa
+```
+
 For demonstrations or offline testing, `--demo` allows `--manifest` to be a
 local TSV path:
 

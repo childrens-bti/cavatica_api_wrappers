@@ -222,3 +222,87 @@ class TestBuildConfig(unittest.TestCase):
         self.assertFalse(config["run_t1k"])
         self.assertFalse(config["run_rmats"])
         self.assertFalse(config["run_fusions"])
+
+
+class TestCramReference(unittest.TestCase):
+    app_id = "childrens-bti/project/kfdrc_RNAseq_workflow/0"
+    reference = "GRCh38.primary_assembly.genome.fa"
+
+    @staticmethod
+    def row(file_name, file_format, cram_reference=""):
+        return {
+            "organism": "human",
+            "experimental_strategy": "RNA-seq",
+            "file_name": file_name,
+            "file_format": file_format,
+            "cram_reference": cram_reference,
+        }
+
+    def test_adds_cram_reference_for_cram_manifest(self):
+        config = generate_config_file.build_config(
+            [self.row("a.cram", "CRAM"), self.row("b.bam", "BAM")],
+            self.app_id,
+            cram_reference=self.reference,
+        )
+
+        self.assertEqual(config["cram_reference"], self.reference)
+
+    def test_detects_cram_by_file_name(self):
+        with self.assertRaisesRegex(
+            click.ClickException, r"without a cram_reference in row\(s\): 2"
+        ):
+            generate_config_file.build_config([self.row("a.cram", "")], self.app_id)
+
+    def test_requires_cram_reference_for_cram_manifest(self):
+        with self.assertRaisesRegex(
+            click.ClickException,
+            r"without a cram_reference in row\(s\): 3; pass --cram-reference",
+        ):
+            generate_config_file.build_config(
+                [self.row("b.bam", "BAM"), self.row("a.cram", "CRAM")],
+                self.app_id,
+            )
+
+    def test_accepts_manifest_cram_reference_without_option(self):
+        config = generate_config_file.build_config(
+            [self.row("a.cram", "CRAM", self.reference)], self.app_id
+        )
+
+        self.assertNotIn("cram_reference", config)
+
+    def test_rejects_option_disagreeing_with_manifest(self):
+        with self.assertRaisesRegex(click.ClickException, "does not match the manifest"):
+            generate_config_file.build_config(
+                [self.row("a.cram", "CRAM", "Homo_sapiens_assembly38.fasta")],
+                self.app_id,
+                cram_reference=self.reference,
+            )
+
+    def test_reports_only_manifest_references_differing_from_option(self):
+        with self.assertRaises(click.ClickException) as raised:
+            generate_config_file.build_config(
+                [
+                    self.row("a.cram", "CRAM", self.reference),
+                    self.row("b.cram", "CRAM", "Homo_sapiens_assembly38.fasta"),
+                ],
+                self.app_id,
+                cram_reference=self.reference,
+            )
+
+        message = raised.exception.message
+        self.assertTrue(message.endswith("value(s): Homo_sapiens_assembly38.fasta"))
+
+    def test_rejects_cram_reference_without_cram_inputs(self):
+        with self.assertRaisesRegex(click.ClickException, "no CRAM inputs"):
+            generate_config_file.build_config(
+                [self.row("b.bam", "BAM")],
+                self.app_id,
+                cram_reference=self.reference,
+            )
+
+    def test_omits_cram_reference_for_non_cram_manifest(self):
+        config = generate_config_file.build_config(
+            [self.row("b.bam", "BAM")], self.app_id
+        )
+
+        self.assertNotIn("cram_reference", config)

@@ -166,6 +166,55 @@ def blank_rows(rows, column):
     ]
 
 
+def is_cram(row):
+    """Return whether a manifest row describes a CRAM file."""
+    return (
+        row.get("file_format", "").strip().casefold() == "cram"
+        or row.get("file_name", "").strip().casefold().endswith(".cram")
+    )
+
+
+def validate_cram_reference(rows, cram_reference=None):
+    """
+    Return the cohort cram_reference for the config, or None.
+
+    CRAM files can only be decoded with the FASTA they were created with, so
+    every CRAM row needs a reference from the manifest's cram_reference column
+    or from --cram-reference.
+    """
+    cram_rows = [(index + 2, row) for index, row in enumerate(rows) if is_cram(row)]
+    if not cram_rows:
+        if cram_reference:
+            raise click.ClickException(
+                "--cram-reference was given but the manifest has no CRAM inputs"
+            )
+        return None
+    manifest_references = {
+        value
+        for _, row in cram_rows
+        if (value := row.get("cram_reference", "").strip())
+    }
+    mismatched_references = manifest_references - {cram_reference} if cram_reference else set()
+    if mismatched_references:
+        raise click.ClickException(
+            f"--cram-reference {cram_reference!r} does not match the manifest "
+            f"cram_reference value(s): {', '.join(sorted(mismatched_references))}"
+        )
+    missing_rows = [
+        row_number
+        for row_number, row in cram_rows
+        if not row.get("cram_reference", "").strip()
+    ]
+    if missing_rows and not cram_reference:
+        rows_text = ", ".join(str(row) for row in missing_rows)
+        raise click.ClickException(
+            f"Manifest has CRAM input(s) without a cram_reference in row(s): "
+            f"{rows_text}; pass --cram-reference with the FASTA the CRAMs were "
+            "created with"
+        )
+    return cram_reference or None
+
+
 def infer_organism(rows, pdx=False):
     blank_organism_rows = blank_rows(rows, "organism")
     if blank_organism_rows:
@@ -266,7 +315,7 @@ def validate_experimental_strategy(rows, app_name):
     return next(iter(strategies))
 
 
-def build_config(rows, app_id):
+def build_config(rows, app_id, cram_reference=None):
     """
     Build the config json.
     """
@@ -295,6 +344,9 @@ def build_config(rows, app_id):
             "run_rmats": False,
             "run_fusions": False,
         }
+    cram_reference = validate_cram_reference(rows, cram_reference)
+    if cram_reference:
+        config["cram_reference"] = cram_reference
     return config
 
 
@@ -325,7 +377,14 @@ def build_config(rows, app_id):
     default="turbo",
     show_default=True,
 )
-def generate_config(manifest, demo, app_id, output, profile):
+@click.option(
+    "--cram-reference",
+    help=(
+        "Filename of the FASTA the input CRAMs were created with; required when "
+        "CRAM rows in the manifest have no cram_reference value"
+    ),
+)
+def generate_config(manifest, demo, app_id, output, profile, cram_reference):
     """Generate a prepopulated JSON config from MANIFEST."""
 
     app_id = parse_app_id(app_id)
@@ -344,7 +403,11 @@ def generate_config(manifest, demo, app_id, output, profile):
             f"Unable to find or access Cavatica app {app_id!r}: {exc}"
         ) from exc
 
-    config = build_config(load_manifest(manifest, demo=demo), app_id)
+    config = build_config(
+        load_manifest(manifest, demo=demo),
+        app_id,
+        cram_reference=cram_reference.strip() if cram_reference else None,
+    )
     manifest_stem = (
         Path(urlparse(manifest).path).stem if not demo else Path(manifest).stem
     )
