@@ -139,8 +139,8 @@ class TestTaskValidator(unittest.TestCase):
     def test_malformed_options_files_fail_before_api_setup(self):
         cases = [
             ("sample_name\tapp\nsample\towner/project/rna/1\n", "output_basename"),
-            ("output_basename\tapp\n\towner/project/rna/1\n", "invalid BAID ''"),
-            ("output_basename\nnot-a-baid\n", "invalid BAID 'not-a-baid'"),
+            ("output_basename\tapp\n\towner/project/rna/1\n", "output_basename contains no BAID: ''"),
+            ("output_basename\nnot-a-baid\n", "output_basename contains no BAID: 'not-a-baid'"),
             (f"output_basename\tapp\n{BAID_B}\n", "wrong number of columns"),
             (f"output_basename\tapp\n{BAID_B}\tapp\textra\n", "wrong number of columns"),
             ("output_basename\n", "Options file contains no BAIDs"),
@@ -155,6 +155,62 @@ class TestTaskValidator(unittest.TestCase):
                 self.assertIn(message, result.output)
                 config.assert_not_called()
                 api.tasks.get.assert_not_called()
+
+    def test_extracts_baids_from_prefixed_and_suffixed_output_basenames(self):
+        for basename in (f"rerun_{BAID_A}", f"{BAID_A}_corrected", f"rerun_{BAID_A}_corrected"):
+            with self.subTest(basename=basename):
+                result, _, _, _ = self.invoke(
+                    f"Bioassay_ID\n{BAID_A}\n", {"first": task(basename)},
+                    options=f"output_basename\n{basename}\n",
+                )
+                self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_multiple_baids_in_one_output_basename_and_task_pass(self):
+        basename = f"paired_{BAID_A}_{BAID_B}_rerun"
+        result, _, _, _ = self.invoke(
+            f"Bioassay_ID\n{BAID_A}\n{BAID_B}\n", {"paired": task(basename)},
+            options=f"output_basename\n{basename}\n",
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("2 unique options BAIDs and 2 unique manifest BAIDs; 2 BAIDs matched", result.output)
+
+    def test_repeated_baid_within_basename_is_counted_once(self):
+        basename = f"{BAID_A}_rerun_{BAID_A}"
+        result, _, _, _ = self.invoke(
+            f"Bioassay_ID\n{BAID_A}\n", {"first": task(basename)},
+            options=f"output_basename\n{basename}\n",
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("1 unique options BAIDs", result.output)
+
+    def test_partial_baids_in_output_basename_are_rejected(self):
+        for basename in (f"{BAID_A}9", f"x{BAID_A}"):
+            with self.subTest(basename=basename):
+                result, api, config, _ = self.invoke(
+                    f"Bioassay_ID\n{BAID_A}\n", {"first": task(BAID_A)},
+                    options=f"output_basename\n{basename}\n",
+                )
+                self.assertEqual(result.exit_code, 2, result.output)
+                self.assertIn("output_basename contains no BAID", result.output)
+                config.assert_not_called()
+                api.tasks.get.assert_not_called()
+
+    def test_all_baids_extracted_from_basename_must_have_tasks(self):
+        result, _, _, _ = self.invoke(
+            f"Bioassay_ID\n{BAID_A}\n{BAID_B}\n", {"first": task(BAID_A)},
+            options=f"output_basename\npaired_{BAID_A}_{BAID_B}\n",
+        )
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn(f"Missing BAID (options sample has no retrieved task): {BAID_B}", result.output)
+
+    def test_extracted_baid_outside_manifest_fails(self):
+        basename = f"paired_{BAID_A}_{BAID_EXTRA}_rerun"
+        result, _, _, _ = self.invoke(
+            f"Bioassay_ID\n{BAID_A}\n", {"paired": task(basename)},
+            options=f"output_basename\n{basename}\n",
+        )
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn(f"Options BAID not in manifest: {BAID_EXTRA}", result.output)
 
     def test_one_sample_rerun_from_37_sample_cohort_warns_and_passes(self):
         baids = [f"BA_{index:08d}" for index in range(37)]
@@ -259,6 +315,7 @@ class TestTaskValidator(unittest.TestCase):
             ("Bioassay_ID\tBAID\n", "exactly one"),
             ("Bioassay_ID\n", "Manifest contains no BAIDs"),
             ("Bioassay_ID\ninvalid\n", "invalid BAID 'invalid'"),
+            (f"Bioassay_ID\nrerun_{BAID_A}\n", f"invalid BAID 'rerun_{BAID_A}'"),
             ("Bioassay_ID\tfile_name\n\tr1.fastq\n", "invalid BAID ''"),
             (f"Bioassay_ID\tfile_name\n{BAID_A}\n", "wrong number of columns"),
             (f"Bioassay_ID\tfile_name\n{BAID_A}\tr1.fastq\textra\n", "wrong number of columns"),

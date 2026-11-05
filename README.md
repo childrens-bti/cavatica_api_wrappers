@@ -187,13 +187,13 @@ python scripts/run_tasks.py \
 
 ## Validating created tasks against a manifest
 
-Run `scripts/task_validator.py` after running `scripts/create_task_from_wf_cwl.py` and before launching the draft tasks. It compares BAIDs across the full cohort manifest, the workflow options file, and the created task names. Set `output_basename` to the bioassay's BAID when preparing task inputs so it appears in the task name.
+Run `scripts/task_validator.py` after running `scripts/create_task_from_wf_cwl.py` and before launching the draft tasks. It compares BAIDs across the full cohort manifest, the workflow options file, and the created task names. Include the bioassay's BAID in `output_basename` when preparing task inputs so it appears in the task name.
 
 Pass the task ID file written by the creation script to `--task_file`. For example, if tasks were created with `--out cohort`, use `cohort_task_ids.txt`. Use the same credentials profile used to create the tasks.
 
 By default, all tasks must have `DRAFT` status and both the manifest and options file must be HTTPS `raw.githubusercontent.com` URLs pointing to files on the `main` branch. All GitHub file inputs require `main`, including in demo mode. The manifest must contain a `Bioassay_ID` or `BAID` column. Repeated manifest BAIDs are counted once because one bioassay can have multiple input files.
 
-Pass the raw GitHub URL for the options CSV/TSV used to create the tasks to the required `--options_file` parameter. Its `output_basename` values must be BAIDs. Local options files require `--demo`, just like local manifests.
+Pass the raw GitHub URL for the options CSV/TSV used to create the tasks to the required `--options_file` parameter. The validator extracts complete BAIDs from `output_basename` using the same regex as task names. Prefixes, suffixes, and multiple BAIDs are supported, such as `rerun_BA_12345678_corrected` or `paired_BA_12345678_BA_ABCDEFGH`. Every basename must contain at least one BAID; all extracted BAIDs are checked against the manifest and tasks. The manifest's `Bioassay_ID` or `BAID` values must still be individual BAIDs. Local options files require `--demo`, just like local manifests.
 
 For a rerun of only part of the cohort, keep the full cohort manifest in `--manifest`, pass the updated rerun options file to `--options_file`, and pass the rerun task ID file to `--task_file`. If the options samples belong to the manifest and exactly match the task samples, a subset produces a warning and exits successfully. For example, one matching rerun task for a 37-sample cohort warns that 36 manifest samples are not included in this run. Options samples outside the manifest, missing options samples in tasks, and tasks outside the options sample list fail validation.
 

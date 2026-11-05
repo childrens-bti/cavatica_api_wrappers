@@ -39,7 +39,7 @@ class ValidatorCommand(click.Command):
             runtime_failure(exc)
 
 
-def read_baids(content, column_names, source):
+def read_baids(content, column_names, source, extract=False):
     """Read unique BAIDs and report malformed CSV/TSV rows."""
     with StringIO(content, newline="") as handle:
         header = handle.readline()
@@ -65,7 +65,15 @@ def read_baids(content, column_names, source):
             if not any(value.strip() for value in row.values()):
                 continue
             baid = row[columns[0]].strip()
-            if not BAID_RE.fullmatch(baid):
+            if extract:
+                matches = set(BAID_RE.findall(baid))
+                if not matches:
+                    errors.append(
+                        f"{source} line {reader.line_num}: "
+                        f"output_basename contains no BAID: {baid!r}"
+                    )
+                baids.update(matches)
+            elif not BAID_RE.fullmatch(baid):
                 errors.append(f"{source} line {reader.line_num}: invalid BAID {baid!r}")
             else:
                 baids.add(baid)
@@ -84,10 +92,10 @@ def read_manifest_baids(manifest, demo=False):
 
 
 def read_options_baids(options_file, demo=False):
-    """Read expected task BAIDs from a GitHub or local demo options file."""
+    """Extract expected task BAIDs embedded in options output basenames."""
     return read_baids(
         load_input(options_file, demo=demo, option="--options_file"),
-        {"output_basename"}, "Options file",
+        {"output_basename"}, "Options file", extract=True,
     )
 
 
