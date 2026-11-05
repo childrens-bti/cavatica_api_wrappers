@@ -187,11 +187,15 @@ python scripts/run_tasks.py \
 
 ## Validating created tasks against a manifest
 
-Run `scripts/task_validator.py` after running `scripts/create_task_from_wf_cwl.py` and before launching the draft tasks. It compares BAIDs in the created task names with the unique BAIDs in the cohort manifest. Set `output_basename` to include the bioassay's BAID when preparing task inputs so it appears in the task name.
+Run `scripts/task_validator.py` after running `scripts/create_task_from_wf_cwl.py` and before launching the draft tasks. It compares BAIDs across the full cohort manifest, the workflow options file, and the created task names. Set `output_basename` to the bioassay's BAID when preparing task inputs so it appears in the task name.
 
 Pass the task ID file written by the creation script to `--task_file`. For example, if tasks were created with `--out cohort`, use `cohort_task_ids.txt`. Use the same credentials profile used to create the tasks.
 
-The manifest can be a local CSV/TSV file or an HTTPS `raw.githubusercontent.com` URL. It must contain a `Bioassay_ID` or `BAID` column. Repeated manifest BAIDs are counted once because one bioassay can have multiple input files.
+By default, all tasks must have `DRAFT` status and both the manifest and options file must be HTTPS `raw.githubusercontent.com` URLs pointing to files on the `main` branch. All GitHub file inputs require `main`, including in demo mode. The manifest must contain a `Bioassay_ID` or `BAID` column. Repeated manifest BAIDs are counted once because one bioassay can have multiple input files.
+
+Pass the raw GitHub URL for the options CSV/TSV used to create the tasks to the required `--options_file` parameter. Its `output_basename` values must be BAIDs. Local options files require `--demo`, just like local manifests.
+
+For a rerun of only part of the cohort, keep the full cohort manifest in `--manifest`, pass the updated rerun options file to `--options_file`, and pass the rerun task ID file to `--task_file`. If the options samples belong to the manifest and exactly match the task samples, a subset produces a warning and exits successfully. For example, one matching rerun task for a 37-sample cohort warns that 36 manifest samples are not included in this run. Options samples outside the manifest, missing options samples in tasks, and tasks outside the options sample list fail validation.
 
 For a private GitHub repository, use your GitHub CLI token (run `gh auth login` first if needed):
 
@@ -200,19 +204,32 @@ export GITHUB_TOKEN="$(gh auth token)"
 python scripts/task_validator.py \
   --profile turbo \
   --task_file cohort_task_ids.txt \
+  --options_file https://raw.githubusercontent.com/owner/repo/main/cohort_options.tsv \
   --manifest https://raw.githubusercontent.com/childrens-bti/data-modeling/main/output-manifests/itt-1163_IDs_assigned.tsv
 ```
 
-`GH_TOKEN` is also supported. Public repositories do not require a token. To use a local manifest:
+`GH_TOKEN` is also supported. The token is used for both GitHub inputs; public repositories do not require a token. Add `--demo` to allow local CSV/TSV manifest/options files and tasks with any status. GitHub inputs are also supported in demo mode:
 
 ```bash
 python scripts/task_validator.py \
+  --demo \
   --profile turbo \
   --task_file cohort_task_ids.txt \
+  --options_file cohort_options.tsv \
   --manifest /path/to/cohort_manifest.tsv
 ```
 
-The script prints a summary and all discrepancies: missing or unexpected BAIDs, multiple tasks for a BAID, duplicate task IDs, task names without a BAID, and task retrieval failures. It exits with status 0 when validation passes and status 1 when discrepancies are found or an input/API error occurs. Review and resolve reported discrepancies before launching tasks.
+The script prints a summary and all discrepancies: missing or unexpected BAIDs, multiple tasks for a BAID, duplicate task IDs, task names without a BAID, and tasks that are not `DRAFT` (unless `--demo` is given). It also reports input, credentials, download, and task retrieval errors. Review and resolve reported problems before launching tasks.
+
+For automation, the exit code and final output line identify the result:
+
+| Result | Exit code | Final line |
+| --- | --- | --- |
+| Validation passes, including a matching rerun subset warning | `0` | `Validation passed.` |
+| Validation finds discrepancies | `1` | `Validation failed.` |
+| Validation cannot complete due to an input, usage, credentials, download, or API error | `2` | `Validation failed.` |
+
+If runtime errors occur alongside discrepancies, exit code `2` takes precedence. Failed task fetches are reported while the remaining task IDs are still checked. `--help` prints usage without a validation result.
 
 ## Launching draft tasks
 

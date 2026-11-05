@@ -9,6 +9,7 @@ import click
 sys.path.insert(0, "scripts")
 
 import generate_config_file
+from helper_functions import manifest_io
 
 
 class TestInferOrganism(unittest.TestCase):
@@ -150,7 +151,7 @@ class TestReadManifest(unittest.TestCase):
                 )
 
                 self.assertEqual(
-                    generate_config_file.read_manifest(path.read_text(), path),
+                    manifest_io.read_manifest(path.read_text(), path),
                     [{"organism": "human", "experimental_strategy": "RNA-seq"}],
                 )
 
@@ -160,7 +161,7 @@ class TestReadManifest(unittest.TestCase):
             path.write_text("")
 
             with self.assertRaisesRegex(click.ClickException, "Manifest has no header"):
-                generate_config_file.read_manifest(path.read_text(), path)
+                manifest_io.read_manifest(path.read_text(), path)
 
     def test_rejects_manifest_without_data_rows(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -168,10 +169,26 @@ class TestReadManifest(unittest.TestCase):
             path.write_text("organism\texperimental_strategy\n")
 
             with self.assertRaisesRegex(click.ClickException, "contains no data rows"):
-                generate_config_file.read_manifest(path.read_text(), path)
+                manifest_io.read_manifest(path.read_text(), path)
 
 
 class TestLoadManifest(unittest.TestCase):
+    def test_loads_local_demo_manifest_through_shared_loader(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.tsv"
+            path.write_text("organism\texperimental_strategy\nhuman\tRNA-seq\n")
+            self.assertEqual(
+                generate_config_file.load_manifest(str(path), demo=True),
+                [{"organism": "human", "experimental_strategy": "RNA-seq"}],
+            )
+
+    def test_demo_still_requires_a_local_manifest(self):
+        with self.assertRaisesRegex(click.ClickException, "path to a local TSV"):
+            generate_config_file.load_manifest(
+                "https://raw.githubusercontent.com/owner/repo/main/manifest.tsv",
+                demo=True,
+            )
+
     def test_rejects_dot_segments_in_manifest_url_before_request(self):
         urls = (
             "https://raw.githubusercontent.com/owner/repository/main/../feature/manifest.tsv",
@@ -180,7 +197,7 @@ class TestLoadManifest(unittest.TestCase):
             "https://raw.githubusercontent.com/owner/repository/main%2f..%2ffeature/manifest.tsv",
         )
 
-        with patch.object(generate_config_file.requests, "get") as get:
+        with patch.object(manifest_io.requests, "get") as get:
             for url in urls:
                 with self.subTest(url=url):
                     with self.assertRaisesRegex(
