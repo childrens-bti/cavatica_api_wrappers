@@ -193,9 +193,11 @@ Pass the task ID file written by the creation script to `--task_file`. For examp
 
 By default, all tasks must have `DRAFT` status and both the manifest and options file must be HTTPS `raw.githubusercontent.com` URLs pointing to files on the `main` branch. All GitHub file inputs require `main`, including in demo mode. The manifest must contain a `Bioassay_ID` or `BAID` column. Repeated manifest BAIDs are counted once because one bioassay can have multiple input files.
 
-Pass the raw GitHub URL for the options CSV/TSV used to create the tasks to the required `--options_file` parameter. The validator extracts complete BAIDs from `output_basename` using the same regex as task names. Prefixes, suffixes, and multiple BAIDs are supported, such as `rerun_BA_12345678_corrected` or `paired_BA_12345678_BA_ABCDEFGH`. Every basename must contain at least one BAID; all extracted BAIDs are checked against the manifest and tasks. The manifest's `Bioassay_ID` or `BAID` values must still be individual BAIDs. Local options files require `--demo`, just like local manifests.
+Pass the raw GitHub URL for the options CSV/TSV used to create the tasks to the required `--options_file` parameter. The validator extracts complete BAIDs from `output_basename` using the same regex as task names. Prefixes, suffixes, and multiple BAIDs are supported, such as `rerun_BA_12345678_corrected` or `paired_BA_12345678_BA_ABCDEFGH`. Every basename must contain at least one BAID, and each options row requires a separate task with exactly the same set of BAIDs; their order does not matter. All extracted BAIDs must belong to the manifest. The manifest's `Bioassay_ID` or `BAID` values must still be individual BAIDs. Local options files require `--demo`, just like local manifests.
 
-For a rerun of only part of the cohort, keep the full cohort manifest in `--manifest`, pass the updated rerun options file to `--options_file`, and pass the rerun task ID file to `--task_file`. If the options samples belong to the manifest and exactly match the task samples, a subset produces a warning and exits successfully. For example, one matching rerun task for a 37-sample cohort warns that 36 manifest samples are not included in this run. Options samples outside the manifest, missing options samples in tasks, and tasks outside the options sample list fail validation.
+For paired workflows, two tumors can share the same normal across separate options rows and tasks. Each task must contain its row's complete pair; a normal appearing in another task does not satisfy a missing normal in this task. Repeated options rows with the same BAID set require one distinct task each and produce a duplicate-row warning when matched.
+
+For a rerun of only part of the cohort, keep the full cohort manifest in `--manifest`, pass the updated rerun options file to `--options_file`, and pass the rerun task ID file to `--task_file`. If the options samples belong to the manifest and every options row has a matching task, a subset produces a warning and exits successfully. For example, one matching rerun task for a 37-sample cohort warns that 36 manifest samples are not included in this run. Options samples outside the manifest, missing tasks for options rows, and extra or mismatched tasks fail validation.
 
 For a private GitHub repository, use your GitHub CLI token (run `gh auth login` first if needed):
 
@@ -219,7 +221,7 @@ python scripts/task_validator.py \
   --manifest /path/to/cohort_manifest.tsv
 ```
 
-The script prints a summary and all discrepancies: missing or unexpected BAIDs, multiple tasks for a BAID, duplicate task IDs, task names without a BAID, and tasks that are not `DRAFT` (unless `--demo` is given). It also reports input, credentials, download, and task retrieval errors. Review and resolve reported problems before launching tasks.
+The script prints a summary of matched BAIDs and options rows, plus all discrepancies: missing or unexpected BAIDs, missing/extra tasks for options rows, duplicate task IDs, task names without a BAID, and tasks that are not `DRAFT` (unless `--demo` is given). It also reports input, credentials, download, and task retrieval errors. Review and resolve reported problems before launching tasks.
 
 For automation, the exit code and final output line identify the result:
 

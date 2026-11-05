@@ -174,6 +174,86 @@ class TestTaskValidator(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("2 unique options BAIDs and 2 unique manifest BAIDs; 2 BAIDs matched", result.output)
 
+    def test_two_tumors_sharing_one_normal_pass(self):
+        first_pair = f"{BAID_A}_{BAID_B}"
+        second_pair = f"{BAID_EXTRA}_{BAID_B}"
+        result, _, _, _ = self.invoke(
+            f"Bioassay_ID\n{BAID_A}\n{BAID_B}\n{BAID_EXTRA}\n",
+            {"first": task(first_pair), "second": task(second_pair)},
+            options=f"output_basename\n{first_pair}\n{second_pair}\n",
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Matched 2 of 2 options rows.", result.output)
+        self.assertNotIn("WARNING", result.output)
+
+    def test_dropped_normal_in_one_pair_fails_even_when_other_task_has_it(self):
+        first_pair = f"{BAID_A}_{BAID_B}"
+        second_pair = f"{BAID_EXTRA}_{BAID_B}"
+        result, _, _, _ = self.invoke(
+            f"Bioassay_ID\n{BAID_A}\n{BAID_B}\n{BAID_EXTRA}\n",
+            {"first": task(first_pair), "second": task(BAID_EXTRA)},
+            options=f"output_basename\n{first_pair}\n{second_pair}\n",
+        )
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn(f"No task for options row: {BAID_EXTRA}_{BAID_B}", result.output)
+        self.assertIn("Task does not match an options row", result.output)
+        self.assertIn("Matched 1 of 2 options rows.", result.output)
+        self.assertNotIn("Missing BAID", result.output)
+
+    def test_wrong_pairings_fail_even_when_pooled_baids_match(self):
+        result, _, _, _ = self.invoke(
+            f"Bioassay_ID\n{BAID_A}\n{BAID_B}\n{BAID_EXTRA}\n",
+            {"paired": task(f"{BAID_A}_{BAID_EXTRA}"), "normal": task(BAID_B)},
+            options=f"output_basename\n{BAID_A}_{BAID_B}\n{BAID_EXTRA}\n",
+        )
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn("No task for options row", result.output)
+        self.assertIn("Task does not match an options row", result.output)
+        self.assertIn("Matched 0 of 2 options rows.", result.output)
+        self.assertNotIn("Missing BAID", result.output)
+
+    def test_baid_order_within_pair_does_not_affect_matching(self):
+        result, _, _, _ = self.invoke(
+            f"Bioassay_ID\n{BAID_A}\n{BAID_B}\n",
+            {"paired": task(f"{BAID_B}_{BAID_A}")},
+            options=f"output_basename\n{BAID_A}_{BAID_B}\n",
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Matched 1 of 1 options rows.", result.output)
+
+    def test_duplicate_options_rows_require_one_task_each(self):
+        pair = f"{BAID_A}_{BAID_B}"
+        result, _, _, _ = self.invoke(
+            f"Bioassay_ID\n{BAID_A}\n{BAID_B}\n", {"paired": task(pair)},
+            options=f"output_basename\n{pair}\n{pair}\n",
+        )
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn(f"No task for options row: {pair} (missing 1 of 2 tasks)", result.output)
+        self.assertIn("Matched 1 of 2 options rows.", result.output)
+
+    def test_matching_duplicate_options_rows_warn_and_pass(self):
+        pair = f"{BAID_A}_{BAID_B}"
+        result, api, _, _ = self.invoke(
+            f"Bioassay_ID\n{BAID_A}\n{BAID_B}\n",
+            {"first": task(pair), "second": task(pair)},
+            options=f"output_basename\n{pair}\n{pair}\n",
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Matched 2 of 2 options rows.", result.output)
+        self.assertIn(f"WARNING: Duplicate options row BAID set: {pair}", result.output)
+        self.assertEqual(api.tasks.get.call_count, 2)
+
+    def test_single_baid_tasks_cannot_replace_one_paired_options_row(self):
+        result, _, _, _ = self.invoke(
+            f"Bioassay_ID\n{BAID_A}\n{BAID_B}\n",
+            {"first": task(BAID_A), "second": task(BAID_B)},
+            options=f"output_basename\n{BAID_A}_{BAID_B}\n",
+        )
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn("No task for options row", result.output)
+        self.assertIn("Matched 0 of 1 options rows.", result.output)
+        self.assertNotIn("Missing BAID", result.output)
+
     def test_repeated_baid_within_basename_is_counted_once(self):
         basename = f"{BAID_A}_rerun_{BAID_A}"
         result, _, _, _ = self.invoke(
@@ -224,6 +304,7 @@ class TestTaskValidator(unittest.TestCase):
             result.output,
             "Checked 1 unique task IDs against 1 unique options BAIDs and "
             "37 unique manifest BAIDs; 1 BAIDs matched.\n"
+            "Matched 1 of 1 options rows.\n"
             "WARNING: Options file contains 1 of 37 manifest samples; "
             "36 manifest samples are not included in this run.\n"
             "Validation passed.\n",
@@ -338,12 +419,12 @@ class TestTaskValidator(unittest.TestCase):
         config.assert_not_called()
         api.tasks.get.assert_not_called()
 
-    def test_multiple_distinct_tasks_for_one_baid_fail(self):
+    def test_extra_task_for_same_options_row_fails(self):
         result, _, _, _ = self.invoke(
             f"Bioassay_ID\n{BAID_A}\n", {"first": task(BAID_A), "retry": task(BAID_A)},
         )
         self.assertEqual(result.exit_code, 1, result.output)
-        self.assertIn(f"Multiple tasks for BAID {BAID_A}", result.output)
+        self.assertIn("Task does not match an options row (or is an extra task for one)", result.output)
         self.assertIn("first", result.output)
         self.assertIn("retry", result.output)
 
@@ -411,7 +492,7 @@ class TestTaskValidator(unittest.TestCase):
     def test_manifest_and_options_readers_require_main_even_in_demo(self):
         url = "https://raw.githubusercontent.com/owner/repo/feature/input.tsv"
         with mock.patch.object(manifest_io.requests, "get") as download:
-            for reader in (script.read_manifest_baids, script.read_options_baids):
+            for reader in (script.read_manifest_baids, script.read_options_rows):
                 for demo in (False, True):
                     with self.subTest(reader=reader.__name__, demo=demo):
                         with self.assertRaisesRegex(script.click.ClickException, "GitHub main branch"):

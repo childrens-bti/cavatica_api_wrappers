@@ -39,8 +39,8 @@ class ValidatorCommand(click.Command):
             runtime_failure(exc)
 
 
-def read_baids(content, column_names, source, extract=False):
-    """Read unique BAIDs and report malformed CSV/TSV rows."""
+def read_baid_rows(content, column_names, source, extract=False):
+    """Read one BAID set per input row, preserving repeated options rows."""
     with StringIO(content, newline="") as handle:
         header = handle.readline()
         handle.seek(0)
@@ -56,7 +56,7 @@ def read_baids(content, column_names, source, extract=False):
             raise click.ClickException(
                 f"{source} must contain exactly one {expected} column"
             )
-        baids = set()
+        baid_rows = []
         errors = []
         for row in reader:
             if None in row or any(value is None for value in row.values()):
@@ -66,37 +66,39 @@ def read_baids(content, column_names, source, extract=False):
                 continue
             baid = row[columns[0]].strip()
             if extract:
-                matches = set(BAID_RE.findall(baid))
+                matches = frozenset(BAID_RE.findall(baid))
                 if not matches:
                     errors.append(
                         f"{source} line {reader.line_num}: "
                         f"output_basename contains no BAID: {baid!r}"
                     )
-                baids.update(matches)
+                else:
+                    baid_rows.append(matches)
             elif not BAID_RE.fullmatch(baid):
                 errors.append(f"{source} line {reader.line_num}: invalid BAID {baid!r}")
             else:
-                baids.add(baid)
+                baid_rows.append(frozenset({baid}))
         if errors:
             raise click.ClickException("\n".join(errors))
-        if not baids:
+        if not baid_rows:
             raise click.ClickException(f"{source} contains no BAIDs")
-    return baids
+    return baid_rows
 
 
 def read_manifest_baids(manifest, demo=False):
     """Read the cohort BAIDs from a local or GitHub manifest."""
-    return read_baids(
+    rows = read_baid_rows(
         load_input(manifest, demo=demo), {"bioassay_id", "baid"}, "Manifest"
     )
+    return set().union(*rows)
 
 
-def read_options_baids(options_file, demo=False):
-    """Extract expected task BAIDs embedded in options output basenames."""
-    return read_baids(
+def read_options_rows(options_file, demo=False):
+    """Count complete BAID sets extracted from each options output basename."""
+    return Counter(read_baid_rows(
         load_input(options_file, demo=demo, option="--options_file"),
         {"output_basename"}, "Options file", extract=True,
-    )
+    ))
 
 
 @click.command(cls=ValidatorCommand, context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
@@ -137,7 +139,8 @@ def task_validator(profile, task_file, manifest, options_file, demo):
     """
     try:
         manifest_baids = read_manifest_baids(manifest, demo=demo)
-        expected_baids = read_options_baids(options_file, demo=demo)
+        expected_rows = read_options_rows(options_file, demo=demo)
+        expected_baids = set().union(*expected_rows)
         with open(task_file, encoding="utf-8-sig") as handle:
             task_counts = Counter(line.strip() for line in handle if line.strip())
     except (OSError, UnicodeError, csv.Error) as exc:
@@ -156,7 +159,9 @@ def task_validator(profile, task_file, manifest, options_file, demo):
         for baid in sorted(expected_baids - manifest_baids)
     ]
     runtime_errors = []
-    baid_tasks = defaultdict(list)
+    row_tasks = defaultdict(list)
+    task_rows = Counter()
+    task_baids = set()
     for task_id, count in task_counts.items():
         if count > 1:
             discrepancies.append(f"Duplicate task ID: {task_id} ({count} entries)")
@@ -173,11 +178,14 @@ def task_validator(profile, task_file, manifest, options_file, demo):
             discrepancies.append(
                 f"Task is not DRAFT (status: {status}): {task_id}\t{name}"
             )
-        baids = set(BAID_RE.findall(name))
+        baids = frozenset(BAID_RE.findall(name))
         if not baids:
             discrepancies.append(f"Task name contains no BAID: {task_id}\t{name}")
+        else:
+            task_rows[baids] += 1
+            row_tasks[baids].append((task_id, name))
+            task_baids.update(baids)
         for baid in sorted(baids):
-            baid_tasks[baid].append((task_id, name))
             if baid not in expected_baids:
                 discrepancies.append(
                     f"Unexpected BAID {baid} (not in options file): {task_id}\t{name}"
@@ -187,18 +195,31 @@ def task_validator(profile, task_file, manifest, options_file, demo):
                     f"Task BAID not in manifest {baid}: {task_id}\t{name}"
                 )
 
-    for baid in sorted(expected_baids - baid_tasks.keys()):
+    for baid in sorted(expected_baids - task_baids):
         discrepancies.append(f"Missing BAID (options sample has no retrieved task): {baid}")
-    for baid, tasks in sorted(baid_tasks.items()):
-        if len(tasks) > 1:
-            details = "; ".join(f"{task_id}\t{name}" for task_id, name in tasks)
-            discrepancies.append(f"Multiple tasks for BAID {baid}: {details}")
+    for row, count in sorted((expected_rows - task_rows).items(), key=lambda item: sorted(item[0])):
+        label = "_".join(sorted(row))
+        discrepancies.append(
+            f"No task for options row: {label} "
+            f"(missing {count} of {expected_rows[row]} tasks)"
+        )
+    for row, count in sorted((task_rows - expected_rows).items(), key=lambda item: sorted(item[0])):
+        label = "_".join(sorted(row))
+        details = "; ".join(f"{task_id}\t{name}" for task_id, name in row_tasks[row])
+        discrepancies.append(
+            f"Task does not match an options row (or is an extra task for one): "
+            f"{label} ({count} extra tasks): {details}"
+        )
 
-    matched = len(expected_baids & baid_tasks.keys())
+    matched = len(expected_baids & task_baids)
     click.echo(
         f"Checked {len(task_counts)} unique task IDs against "
         f"{len(expected_baids)} unique options BAIDs and "
         f"{len(manifest_baids)} unique manifest BAIDs; {matched} BAIDs matched."
+    )
+    click.echo(
+        f"Matched {sum((expected_rows & task_rows).values())} "
+        f"of {sum(expected_rows.values())} options rows."
     )
     if discrepancies or runtime_errors:
         for discrepancy in discrepancies:
@@ -211,6 +232,12 @@ def task_validator(profile, task_file, manifest, options_file, demo):
         )
         click.echo("Validation failed.")
         raise click.exceptions.Exit(2 if runtime_errors else 1)
+    for row, count in sorted(expected_rows.items(), key=lambda item: sorted(item[0])):
+        if count > 1:
+            click.echo(
+                f"WARNING: Duplicate options row BAID set: {'_'.join(sorted(row))} "
+                f"({count} rows, each matched by a separate task)."
+            )
     if expected_baids < manifest_baids:
         click.echo(
             f"WARNING: Options file contains {len(expected_baids)} of "
