@@ -185,6 +185,54 @@ python scripts/run_tasks.py \
   --output_basename aph17
 ```
 
+## Validating created tasks against a manifest
+
+Run `scripts/task_validator.py` after running `scripts/create_task_from_wf_cwl.py` and before launching the draft tasks. It compares BAIDs across the full cohort manifest, the workflow options file, and the created task names. Include the bioassay's BAID in `output_basename` when preparing task inputs so it appears in the task name.
+
+Pass the task ID file written by the creation script to `--task_file`. For example, if tasks were created with `--out cohort`, use `cohort_task_ids.txt`. Use the same credentials profile used to create the tasks.
+
+By default, all tasks must have `DRAFT` status and both the manifest and options file must be HTTPS `raw.githubusercontent.com` URLs pointing to files on the `main` branch. All GitHub file inputs require `main`, including in demo mode. The manifest must contain a `Bioassay_ID` or `BAID` column. Repeated manifest BAIDs are counted once because one bioassay can have multiple input files.
+
+Pass the raw GitHub URL for the options CSV/TSV used to create the tasks to the required `--options_file` parameter. The validator extracts complete BAIDs from `output_basename` using the same regex as task names. Prefixes, suffixes, and multiple BAIDs are supported, such as `rerun_BA_12345678_corrected` or `paired_BA_12345678_BA_ABCDEFGH`. Every basename must contain at least one BAID, and each options row requires a separate task with exactly the same set of BAIDs; their order does not matter. All extracted BAIDs must belong to the manifest. The manifest's `Bioassay_ID` or `BAID` values must still be individual BAIDs. Local options files require `--demo`, just like local manifests.
+
+For paired workflows, two tumors can share the same normal across separate options rows and tasks. Each task must contain its row's complete pair; a normal appearing in another task does not satisfy a missing normal in this task. Repeated options rows with the same BAID set require one distinct task each and produce a duplicate-row warning when matched.
+
+For a rerun of only part of the cohort, keep the full cohort manifest in `--manifest`, pass the updated rerun options file to `--options_file`, and pass the rerun task ID file to `--task_file`. If the options samples belong to the manifest and every options row has a matching task, a subset produces a warning and exits successfully. For example, one matching rerun task for a 37-sample cohort warns that 36 manifest samples are not included in this run. Options samples outside the manifest, missing tasks for options rows, and extra or mismatched tasks fail validation.
+
+For a private GitHub repository, use your GitHub CLI token (run `gh auth login` first if needed):
+
+```bash
+export GITHUB_TOKEN="$(gh auth token)"
+python scripts/task_validator.py \
+  --profile turbo \
+  --task_file cohort_task_ids.txt \
+  --options_file https://raw.githubusercontent.com/owner/repo/main/cohort_options.tsv \
+  --manifest https://raw.githubusercontent.com/childrens-bti/data-modeling/main/output-manifests/itt-1163_IDs_assigned.tsv
+```
+
+`GH_TOKEN` is also supported. The token is used for both GitHub inputs; public repositories do not require a token. Add `--demo` to allow local CSV/TSV manifest/options files and tasks with any status. GitHub inputs are also supported in demo mode:
+
+```bash
+python scripts/task_validator.py \
+  --demo \
+  --profile turbo \
+  --task_file cohort_task_ids.txt \
+  --options_file cohort_options.tsv \
+  --manifest /path/to/cohort_manifest.tsv
+```
+
+The script prints a summary of matched BAIDs and options rows, plus all discrepancies: missing or unexpected BAIDs, missing/extra tasks for options rows, duplicate task IDs, task names without a BAID, and tasks that are not `DRAFT` (unless `--demo` is given). It also reports input, credentials, download, and task retrieval errors. Review and resolve reported problems before launching tasks.
+
+For automation, the exit code and final output line identify the result:
+
+| Result | Exit code | Final line |
+| --- | --- | --- |
+| Validation passes, including a matching rerun subset warning | `0` | `Validation passed.` |
+| Validation finds discrepancies | `1` | `Validation failed.` |
+| Validation cannot complete due to an input, usage, credentials, download, or API error | `2` | `Validation failed.` |
+
+If runtime errors occur alongside discrepancies, exit code `2` takes precedence. Failed task fetches are reported while the remaining task IDs are still checked. `--help` prints usage without a validation result.
+
 ## Launching draft tasks
 
 The Sevenbridges API separates creating tasks from launching them, so you can inspect draft tasks before running them. Use `scripts/run_tasks.py` with either `--task_id` or `--task_file` (one task ID per line). Blank lines and duplicate IDs are ignored. The script only launches drafts; it cannot create tasks.
