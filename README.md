@@ -185,6 +185,35 @@ python scripts/run_tasks.py \
   --output_basename aph17
 ```
 
+## Validating created tasks against a manifest
+
+Run `scripts/task_validator.py` after running `scripts/create_task_from_wf_cwl.py` and before launching the draft tasks. It compares BAIDs in the created task names with the unique BAIDs in the cohort manifest. Set `output_basename` to include the bioassay's BAID when preparing task inputs so it appears in the task name.
+
+Pass the task ID file written by the creation script to `--task_file`. For example, if tasks were created with `--out cohort`, use `cohort_task_ids.txt`. Use the same credentials profile used to create the tasks.
+
+The manifest can be a local CSV/TSV file or an HTTPS `raw.githubusercontent.com` URL. It must contain a `Bioassay_ID` or `BAID` column. Repeated manifest BAIDs are counted once because one bioassay can have multiple input files.
+
+For a private GitHub repository, use your GitHub CLI token (run `gh auth login` first if needed):
+
+```bash
+export GITHUB_TOKEN="$(gh auth token)"
+python scripts/task_validator.py \
+  --profile turbo \
+  --task_file cohort_task_ids.txt \
+  --manifest https://raw.githubusercontent.com/childrens-bti/data-modeling/main/output-manifests/itt-1163_IDs_assigned.tsv
+```
+
+`GH_TOKEN` is also supported. Public repositories do not require a token. To use a local manifest:
+
+```bash
+python scripts/task_validator.py \
+  --profile turbo \
+  --task_file cohort_task_ids.txt \
+  --manifest /path/to/cohort_manifest.tsv
+```
+
+The script prints a summary and all discrepancies: missing or unexpected BAIDs, multiple tasks for a BAID, duplicate task IDs, task names without a BAID, and task retrieval failures. It exits with status 0 when validation passes and status 1 when discrepancies are found or an input/API error occurs. Review and resolve reported discrepancies before launching tasks.
+
 ## Launching draft tasks
 
 The Sevenbridges API separates creating tasks from launching them, so you can inspect draft tasks before running them. Use `scripts/run_tasks.py` with either `--task_id` or `--task_file` (one task ID per line). Blank lines and duplicate IDs are ignored. The script only launches drafts; it cannot create tasks.
