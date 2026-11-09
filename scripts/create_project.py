@@ -8,7 +8,7 @@ from sevenbridges.http.error_handlers import rate_limit_sleeper, maintenance_sle
 from helper_functions import helper_functions as hf
 
 ADMIN_USERS = ["sicklera", "harenzaj", "farrow1"]
-REGULAR_USERS = ["chaodi", "corbettr", "ababaei", "raqureshi"]
+REGULAR_USERS = ["chaodi", "corbettr", "raqureshi"]
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
