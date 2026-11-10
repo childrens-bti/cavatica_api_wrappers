@@ -42,7 +42,7 @@ def remove_user(profile, user, project, project_creator):
     if project is not None:
         projs = [api.projects.get(id=project)]
     else:
-        pcs = set(project_creator.split(","))
+        pcs = {creator.strip() for creator in project_creator.split(",")}
         projs = hf.get_all_projects(api, strict=True)
 
     failed_projects = []

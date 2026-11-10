@@ -137,7 +137,7 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         )]
         self.projects_mock.return_value = projects
         result = self.runner.invoke(remove_user, [
-            "--user", "target", "--project_creator", "owner,second,childrens-bti",
+            "--user", "target", "--project_creator", " owner, second , childrens-bti ",
         ])
         self.assertEqual(result.exit_code, 0, result.output)
         self.projects_mock.assert_called_once_with(self.api, strict=True)
