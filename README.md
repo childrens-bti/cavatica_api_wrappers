@@ -316,6 +316,19 @@ that profile. To view all available options:
 python scripts/generate_projects_report.py -h
 ```
 
+## Removing a User from Projects
+
+Use `scripts/remove_user_from_projects.py` to remove a user from one project
+with `--project` (ID or URL), or from accessible projects owned by the
+comma-separated accounts in `--project_creator`. Provide exactly one of these
+options. The script reports removal outcomes and protects
+`childrens-bti/childrens-bti-references` from user removal.
+
+```bash
+python scripts/remove_user_from_projects.py --user username --project owner/project --profile cavatica
+python scripts/remove_user_from_projects.py --user username --project_creator owner1,owner2 --profile cavatica
+```
+
 ## Other Scripts Usages
 
 Most scripts in this repo are simple and provide usage and inputs by running them with the -h option.
