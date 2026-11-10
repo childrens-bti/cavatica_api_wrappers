@@ -15,6 +15,7 @@ class TestRemoveUserFromProjects(unittest.TestCase):
     def setUp(self):
         self.runner = CliRunner()
         self.api = Mock()
+        self.api.users.me.return_value = SimpleNamespace(username="operator")
         self.config = patch("remove_user_from_projects.hf.parse_config", return_value=self.api)
         self.all_projects = patch("remove_user_from_projects.hf.get_all_projects")
         self.config_mock = self.config.start()
@@ -25,6 +26,13 @@ class TestRemoveUserFromProjects(unittest.TestCase):
     def project(self, project_id, members=("target",)):
         project = Mock(id=project_id)
         project.get_members.return_value = self.member_page(members, len(members))
+
+        def remove_member(user):
+            remaining = [name for name in members if name != user]
+            project.get_members.side_effect = None
+            project.get_members.return_value = self.member_page(remaining, len(remaining))
+
+        project.remove_member.side_effect = remove_member
         return project
 
     def member_page(self, members, total):
@@ -59,7 +67,44 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         ])
         self.assertEqual(result.exit_code, 0, result.output)
         project.remove_member.assert_called_once_with(user="target")
-        self.assertIn("Removed (1): owner/project", result.output)
+        self.assertIn("Confirmed absent (1): owner/project", result.output)
+
+    def test_username_case_matches_the_member_list_for_removal_and_verification(self):
+        for removed in (True, False):
+            with self.subTest(removed=removed):
+                project = self.project("owner/project")
+                if not removed:
+                    project.remove_member.side_effect = None
+                self.api.projects.get.return_value = project
+                result = self.runner.invoke(remove_user, [
+                    "--user", "TARGET", "--project", "owner/project",
+                ])
+                self.assertEqual(project.remove_member.call_args_list, [call(user="target")] * (1 if removed else 5))
+                self.assertEqual(result.exit_code, 0 if removed else 1, result.output)
+                status = "Confirmed absent" if removed else "Still has access"
+                self.assertIn(f"{status} (1): owner/project", result.output)
+
+    def test_self_removal_is_rejected_before_project_access(self):
+        self.api.users.me.return_value = SimpleNamespace(username="target")
+        for selector in (["--project", "owner/project"], ["--project_creator", "owner"]):
+            for user in ("target", " target ", "TARGET"):
+                with self.subTest(selector=selector, user=user):
+                    result = self.runner.invoke(remove_user, ["--user", user, *selector])
+                    self.assertEqual(result.exit_code, 1, result.output)
+                    self.assertIn("Cannot remove the authenticated user target", result.output)
+                    self.api.projects.get.assert_not_called()
+                    self.projects_mock.assert_not_called()
+
+    def test_identity_lookup_failure_stops_before_project_access(self):
+        error = SbgError(message="Could not fetch current user")
+        self.api.users.me.side_effect = error
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIs(result.exception, error)
+        self.api.projects.get.assert_not_called()
+        self.projects_mock.assert_not_called()
 
     def test_empty_creator_entries_are_rejected_before_api_access(self):
         for creators in ("", " ", ",", "owner,", ",owner", "owner, ,second"):
@@ -112,7 +157,7 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         ])
         self.assertEqual(result.exit_code, 1, result.output)
         self.assertIn("No projects matched owners: typo", result.output)
-        self.assertIn("Could not verify or remove user target", result.output)
+        self.assertIn("Could not verify membership for user target", result.output)
 
     def test_single_project_by_id_or_url(self):
         for project_arg in ("owner/project", "https://cavatica.sbgenomics.com/u/owner/project/"):
@@ -131,7 +176,7 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         result = self.runner.invoke(remove_user, ["--user", "target", "--project", "owner/project"])
         self.assertEqual(result.exit_code, 0, result.output)
         project.remove_member.assert_not_called()
-        self.assertIn("Already absent (1): owner/project", result.output)
+        self.assertIn("Confirmed absent (1): owner/project", result.output)
         self.assertNotIn("Removed (", result.output)
 
     def test_explicit_reference_project_is_rejected_before_api_access(self):
@@ -159,7 +204,8 @@ class TestRemoveUserFromProjects(unittest.TestCase):
                     "--user", "target", "--project", "owner/project",
                 ])
                 self.assertEqual(result.exit_code, 1, result.output)
-                self.assertIn("Could not verify or remove user target", result.output)
+                message = "Could not verify membership" if operation == "get_members" else "still has access"
+                self.assertIn(message, result.output)
                 self.assertIn("owner/project", result.output)
                 self.assertNotIn("Finished removing user", result.output)
                 if operation == "get_members":
@@ -177,18 +223,15 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         ])
         self.assertEqual(result.exit_code, 1, result.output)
         unreadable.remove_member.assert_not_called()
-        unremovable.remove_member.assert_called_once_with(user="target")
+        self.assertEqual(unremovable.remove_member.call_args_list, [call(user="target")] * 5)
         removable.remove_member.assert_called_once_with(user="target")
-        self.assertIn("in projects: owner/unreadable, owner/unremovable", result.output)
-        self.assertIn("Removed (1): owner/removable", result.output)
-        self.assertIn(
-            "Failed to verify or remove (2): owner/unreadable, owner/unremovable",
-            result.output,
-        )
+        self.assertIn("Confirmed absent (1): owner/removable", result.output)
+        self.assertIn("Could not verify (1): owner/unreadable", result.output)
+        self.assertIn("Still has access (1): owner/unremovable", result.output)
         self.assertNotIn("Not processed (", result.output)
         self.assertNotIn("Finished removing user", result.output)
 
-    def test_unexpected_failure_reports_partial_changes_before_propagating(self):
+    def test_removal_failure_retries_unresolved_projects_after_verification(self):
         for operation in ("get_members", "remove_member"):
             with self.subTest(operation=operation):
                 removed = self.project("owner/removed")
@@ -202,24 +245,20 @@ class TestRemoveUserFromProjects(unittest.TestCase):
                     "--user", "target", "--project_creator", "owner",
                 ])
                 self.assertEqual(result.exit_code, 1, result.output)
-                self.assertIs(result.exception, error)
                 removed.remove_member.assert_called_once_with(user="target")
                 absent.remove_member.assert_not_called()
-                unprocessed.get_members.assert_not_called()
-                unprocessed.remove_member.assert_not_called()
-                self.assertIn("Removed (1): owner/removed", result.output)
-                self.assertIn("Already absent (1): owner/absent", result.output)
-                status = (
-                    "Outcome unconfirmed" if operation == "remove_member"
-                    else "Failed to verify or remove"
-                )
-                self.assertIn(f"{status} (1): owner/failed", result.output)
-                self.assertIn("Not processed (1): owner/unprocessed", result.output)
+                self.assertEqual(unprocessed.get_members.call_args_list, [call(limit=100)] * 3)
+                unprocessed.remove_member.assert_called_once_with(user="target")
+                self.assertIn("Confirmed absent (3): owner/removed, owner/absent, owner/unprocessed", result.output)
+                if operation == "get_members":
+                    self.assertIn("Could not verify (1): owner/failed", result.output)
+                else:
+                    self.assertIn("Still has access (1): owner/failed", result.output)
                 self.assertNotIn("Finished removing user", result.output)
                 if operation == "get_members":
                     failed.remove_member.assert_not_called()
 
-    def test_applied_delete_with_lost_response_is_unconfirmed_and_not_retried(self):
+    def test_final_check_confirms_removal_after_lost_delete_response(self):
         project = self.project("owner/project")
         error = ConnectionError("DELETE response lost")
 
@@ -232,13 +271,159 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         result = self.runner.invoke(remove_user, [
             "--user", "target", "--project", "owner/project",
         ])
-        self.assertEqual(result.exit_code, 1, result.output)
-        self.assertIs(result.exception, error)
+        self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(len(project.get_members.return_value), 0)
         project.remove_member.assert_called_once_with(user="target")
-        project.get_members.assert_called_once_with(limit=100)
-        self.assertIn("Outcome unconfirmed (1): owner/project", result.output)
+        self.assertEqual(project.get_members.call_args_list, [call(limit=100), call(limit=100)])
+        self.assertIn("Confirmed absent (1): owner/project", result.output)
         self.assertNotIn("Failed to verify or remove (", result.output)
+
+    def test_successful_delete_response_is_not_enough_if_user_is_still_present(self):
+        project = self.project("owner/project")
+        project.remove_member.side_effect = None  # Acknowledged, but no state change.
+        self.api.projects.get.return_value = project
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn("Still has access (1): owner/project", result.output)
+        self.assertEqual(project.remove_member.call_count, 5)
+        self.assertNotIn("Attempt 6/5", result.output)
+        self.assertNotIn("Confirmed absent (", result.output)
+        self.assertNotIn("Finished removing user", result.output)
+
+    def test_final_check_failure_does_not_report_confirmed_removal(self):
+        project = self.project("owner/project")
+        project.remove_member.side_effect = None
+        project.get_members.side_effect = [
+            self.member_page(["target"], 1),
+            *[SbgError(message="Verification unavailable")] * 9,
+        ]
+        self.api.projects.get.return_value = project
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        project.remove_member.assert_called_once_with(user="target")
+        self.assertIn("Could not verify (1): owner/project", result.output)
+        self.assertNotIn("Confirmed absent (", result.output)
+
+    def test_final_check_reads_all_pages_even_if_user_was_initially_absent(self):
+        project = self.project("owner/project", members=())
+        project.get_members.side_effect = [
+            self.member_page([], 0),
+            self.member_page([f"member{i}" for i in range(100)], 101),
+            self.member_page(["target"], 101),
+            self.member_page(["target"], 1),
+        ]
+        self.api.projects.get.return_value = project
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 0, result.output)
+        project.remove_member.assert_called_once_with(user="target")
+        self.assertEqual(project.get_members.call_args_list, [
+            call(limit=100), call(limit=100), call(limit=100, offset=100),
+            call(limit=100), call(limit=100),
+        ])
+        self.assertIn("Confirmed absent (1): owner/project", result.output)
+
+    def test_verification_starts_after_all_removal_attempts(self):
+        first = self.project("owner/first")
+        second = self.project("owner/second")
+        calls = Mock()
+        calls.attach_mock(first.get_members, "read_first")
+        calls.attach_mock(first.remove_member, "remove_first")
+        calls.attach_mock(second.get_members, "read_second")
+        calls.attach_mock(second.remove_member, "remove_second")
+        self.projects_mock.return_value = [first, second]
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project_creator", "owner",
+        ])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(calls.mock_calls, [
+            call.read_first(limit=100), call.remove_first(user="target"),
+            call.read_second(limit=100), call.remove_second(user="target"),
+            call.read_first(limit=100), call.read_second(limit=100),
+        ])
+
+    def test_retry_only_unresolved_projects_and_stop_when_all_15_are_absent(self):
+        projects = [self.project(f"owner/project{i:02d}") for i in range(1, 16)]
+        for project in projects[13:]:
+            remove = project.remove_member.side_effect
+
+            def remove_on_second_attempt(user, project=project, remove=remove):
+                if project.remove_member.call_count == 2:
+                    remove(user)
+
+            project.remove_member.side_effect = remove_on_second_attempt
+        self.projects_mock.return_value = projects
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project_creator", "owner",
+        ])
+        self.assertEqual(result.exit_code, 0, result.output)
+        for project in projects[:13]:
+            project.remove_member.assert_called_once_with(user="target")
+            self.assertEqual(project.get_members.call_count, 2)
+        for project in projects[13:]:
+            self.assertEqual(project.remove_member.call_count, 2)
+        self.assertIn("Attempt 2/5: retrying 2 unresolved project(s)", result.output)
+        self.assertIn("Confirmed absent (15):", result.output)
+        self.assertNotIn("Attempt 3/5", result.output)
+
+    def test_fifth_attempt_can_succeed_after_removal_errors(self):
+        project = self.project("owner/project")
+        remove = project.remove_member.side_effect
+
+        def remove_on_fifth_attempt(user):
+            if project.remove_member.call_count < 5:
+                raise ConnectionError("Temporary removal failure")
+            remove(user)
+
+        project.remove_member.side_effect = remove_on_fifth_attempt
+        self.api.projects.get.return_value = project
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(project.remove_member.call_count, 5)
+        self.assertIn("Confirmed absent (1): owner/project", result.output)
+        self.assertNotIn("Attempt 6/5", result.output)
+
+    def test_failed_verification_is_rechecked_without_repeating_applied_removal(self):
+        project = self.project("owner/project")
+        remove = project.remove_member.side_effect
+
+        def remove_then_fail_verification(user):
+            remove(user)
+            project.get_members.side_effect = [
+                SbgError(message="Temporary verification failure"),
+                self.member_page([], 0), self.member_page([], 0),
+            ]
+
+        project.remove_member.side_effect = remove_then_fail_verification
+        self.api.projects.get.return_value = project
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 0, result.output)
+        project.remove_member.assert_called_once_with(user="target")
+        self.assertEqual(project.get_members.call_count, 4)
+        self.assertIn("Confirmed absent (1): owner/project", result.output)
+        self.assertNotIn("Attempt 3/5", result.output)
+
+    def test_interruption_during_retry_stops_without_further_requests(self):
+        project = self.project("owner/project")
+        project.remove_member.side_effect = [None, KeyboardInterrupt()]
+        self.api.projects.get.return_value = project
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertEqual(project.remove_member.call_count, 2)
+        self.assertEqual(project.get_members.call_count, 3)
+        self.assertIn("Could not verify (1): owner/project", result.output)
+        self.assertNotIn("Attempt 3/5", result.output)
 
     def test_interruption_does_not_claim_current_project_was_unprocessed(self):
         removed = self.project("owner/removed")
@@ -276,6 +461,7 @@ class TestRemoveUserFromProjects(unittest.TestCase):
                     self.member_page([f"member{i}" for i in range(100)], 201),
                     self.member_page([f"member{i}" for i in range(100, 200)], 201),
                     self.member_page([last_member], 201),
+                    self.member_page([last_member], 1),
                 ]
                 self.api.projects.get.return_value = project
                 result = self.runner.invoke(remove_user, [
@@ -286,6 +472,7 @@ class TestRemoveUserFromProjects(unittest.TestCase):
                     call(limit=100),
                     call(limit=100, offset=100),
                     call(limit=100, offset=200),
+                    call(limit=100),
                 ])
                 if last_member == "target":
                     project.remove_member.assert_called_once_with(user="target")
@@ -309,7 +496,7 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         for project in projects[2:]:
             project.remove_member.assert_not_called()
         self.assertIn("2 eligible project(s)", result.output)
-        self.assertIn("Removed (2): owner/project, second/project", result.output)
+        self.assertIn("Confirmed absent (2): owner/project, second/project", result.output)
         self.assertIn(
             "Protected/skipped (1): childrens-bti/childrens-bti-references",
             result.output,

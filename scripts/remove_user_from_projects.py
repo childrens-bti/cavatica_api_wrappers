@@ -9,6 +9,18 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 REFERENCE_PROJECT = "childrens-bti/childrens-bti-references"
 
 
+def find_member_username(project, user):
+    """Read every member page and return the matching username, if present."""
+    members = project.get_members(limit=hf.LIMIT)
+    usernames = {member.username for member in members}
+    offset = hf.LIMIT
+    while offset < members.total:
+        members = project.get_members(limit=hf.LIMIT, offset=offset)
+        usernames.update(member.username for member in members)
+        offset += hf.LIMIT
+    return next((name for name in usernames if name.casefold() == user.casefold()), None)
+
+
 def report_outcomes(user, eligible_count, outcomes):
     """Report confirmed outcomes and any projects left unprocessed."""
     click.echo(f"Removal summary for {user}: {eligible_count} eligible project(s)")
@@ -76,6 +88,11 @@ def remove_user(profile, user, project, project_creator):
 
     # read config file
     api = hf.parse_config(profile)
+    current_user = api.users.me()
+    if user.casefold() == current_user.username.casefold():
+        raise click.ClickException(
+            f"Cannot remove the authenticated user {current_user.username} from projects"
+        )
 
     if project is not None:
         projs = [api.projects.get(id=project)]
@@ -93,6 +110,7 @@ def remove_user(profile, user, project, project_creator):
         "Protected/skipped": [],
     }
     pending_error = None
+    eligible_projects = []
     try:
         with tqdm(projs, desc="Removing user from projects", unit="project") as progress:
             for p in progress:
@@ -104,21 +122,16 @@ def remove_user(profile, user, project, project_creator):
                     outcomes["Protected/skipped"].append(p.id)
                     continue
                 eligible_count += 1
+                eligible_projects.append(p)
                 if pending_error is not None:
                     outcomes["Not processed"].append(p.id)
                     continue
                 removal_started = False
                 try:
-                    users = p.get_members(limit=hf.LIMIT)
-                    usernames = {member.username for member in users}
-                    offset = hf.LIMIT
-                    while offset < users.total:
-                        users = p.get_members(limit=hf.LIMIT, offset=offset)
-                        usernames.update(member.username for member in users)
-                        offset += hf.LIMIT
-                    if user in usernames:
+                    member = find_member_username(p, user)
+                    if member is not None:
                         removal_started = True
-                        p.remove_member(user=user)
+                        p.remove_member(user=member)
                         outcomes["Removed"].append(p.id)
                     else:
                         outcomes["Already absent"].append(p.id)
@@ -126,31 +139,72 @@ def remove_user(profile, user, project, project_creator):
                     outcomes["Failed to verify or remove"].append(p.id)
                     tqdm.write(f"Insufficient permissions for {p.id}; skipping")
                 except BaseException as error:
-                    # A failed DELETE may have reached the server. Do not claim
-                    # the membership is unchanged or automatically retry it.
+                    # An error does not guarantee the user still has access.
+                    # The SDK handles retries; do not add another retry here.
                     status = (
                         "Outcome unconfirmed" if removal_started
                         else "Failed to verify or remove"
                     )
                     outcomes[status].append(p.id)
-                    # Finish local accounting in this pass without further API
-                    # calls, then propagate the original error after the summary.
+                    # Stop further removals, but ordinary errors can still be
+                    # resolved by the final membership check.
                     pending_error = error
+
+        # Respect interruptions immediately; otherwise check the actual state
+        # of every eligible project, including failed or unprocessed removals.
+        if pending_error is None or isinstance(pending_error, Exception):
+            remaining = eligible_projects
+            confirmed_absent = []
+            for attempt in range(1, 6):
+                outcomes = {
+                    "Confirmed absent": confirmed_absent,
+                    "Still has access": [],
+                    "Could not verify": [p.id for p in remaining],
+                    "Protected/skipped": outcomes["Protected/skipped"],
+                }
+                if attempt > 1:
+                    click.echo(f"Attempt {attempt}/5: retrying {len(remaining)} unresolved project(s)")
+                    for p in tqdm(remaining, desc="Retrying removals", unit="project"):
+                        try:
+                            member = find_member_username(p, user)
+                            if member is not None:
+                                p.remove_member(user=member)
+                        except Exception as error:
+                            tqdm.write(f"Could not remove user from {p.id}: {error}")
+
+                for p in tqdm(remaining, desc="Verifying membership", unit="project"):
+                    try:
+                        member = find_member_username(p, user)
+                    except Exception as error:
+                        tqdm.write(f"Could not verify membership in {p.id}: {error}")
+                        continue
+                    status = "Still has access" if member is not None else "Confirmed absent"
+                    outcomes[status].append(p.id)
+                    outcomes["Could not verify"].remove(p.id)
+
+                if len(confirmed_absent) == eligible_count:
+                    break
+                confirmed_ids = set(confirmed_absent)
+                remaining = [p for p in eligible_projects if p.id not in confirmed_ids]
     finally:
         for owner in sorted(unmatched_owners):
             click.echo(f"Warning: no projects matched owner {owner}")
         report_outcomes(user, eligible_count, outcomes)
 
-    if pending_error is not None:
+    if pending_error is not None and not isinstance(pending_error, Exception):
         raise pending_error
 
     errors = []
     if unmatched_owners:
         errors.append(f"No projects matched owners: {', '.join(sorted(unmatched_owners))}")
-    if outcomes["Failed to verify or remove"]:
+    if outcomes["Still has access"]:
         errors.append(
-            f"Could not verify or remove user {user} due to insufficient permissions "
-            f"in projects: {', '.join(outcomes['Failed to verify or remove'])}"
+            f"User {user} still has access to projects: {', '.join(outcomes['Still has access'])}"
+        )
+    if outcomes["Could not verify"]:
+        errors.append(
+            f"Could not verify membership for user {user} in projects: "
+            f"{', '.join(outcomes['Could not verify'])}"
         )
     if errors:
         raise click.ClickException("; ".join(errors))
