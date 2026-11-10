@@ -1,5 +1,5 @@
 import unittest
-from helper_functions import parse_project
+from helper_functions.helper_functions import parse_project
 
 
 class TestCheckAndGetFiles(unittest.TestCase):

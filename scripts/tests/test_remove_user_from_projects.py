@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
 
 from click.testing import CliRunner
+from requests.exceptions import ConnectionError
 from sevenbridges.errors import Forbidden, SbgError
 from sevenbridges.meta.collection import Collection
 
@@ -71,7 +72,7 @@ class TestRemoveUserFromProjects(unittest.TestCase):
                 self.config_mock.assert_not_called()
                 self.projects_mock.assert_not_called()
 
-    def test_unmatched_owners_are_reported_with_eligible_count(self):
+    def test_unmatched_owners_return_failure_with_eligible_count(self):
         for creators, count in (("typo", 0), ("owner,typo", 1)):
             with self.subTest(creators=creators):
                 project = self.project("owner/project")
@@ -80,11 +81,38 @@ class TestRemoveUserFromProjects(unittest.TestCase):
                 result = self.runner.invoke(remove_user, [
                     "--user", "target", "--project_creator", creators,
                 ])
-                self.assertEqual(result.exit_code, 0, result.output)
-                self.assertIn("no eligible projects matched owner typo", result.output)
+                self.assertEqual(result.exit_code, 1, result.output)
+                self.assertIn("No projects matched owners: typo", result.output)
                 self.assertIn(f"{count} eligible project(s)", result.output)
+                self.assertNotIn("Finished removing user", result.output)
                 self.assertEqual(project.remove_member.call_count, count)
                 unrelated.get_members.assert_not_called()
+
+    def test_malformed_project_is_rejected_before_api_access(self):
+        for project_arg in (
+            "", " ", "owner", "/project", "owner/", "owner/ ",
+            "https://cavatica.sbgenomics.com/u/",
+            "https://cavatica.sbgenomics.com/u/owner/",
+        ):
+            with self.subTest(project_arg=project_arg):
+                result = self.runner.invoke(remove_user, [
+                    "--user", "target", "--project", project_arg,
+                ])
+                self.assertEqual(result.exit_code, 2, result.output)
+                self.assertIn("Invalid value for --project", result.output)
+                self.assertIn("owner/project", result.output)
+                self.config_mock.assert_not_called()
+
+    def test_unmatched_owners_and_permission_denials_are_both_reported(self):
+        project = self.project("owner/project")
+        project.get_members.side_effect = Forbidden(message="Denied")
+        self.projects_mock.return_value = [project]
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project_creator", "owner,typo",
+        ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn("No projects matched owners: typo", result.output)
+        self.assertIn("Could not verify or remove user target", result.output)
 
     def test_single_project_by_id_or_url(self):
         for project_arg in ("owner/project", "https://cavatica.sbgenomics.com/u/owner/project/"):
@@ -181,11 +209,36 @@ class TestRemoveUserFromProjects(unittest.TestCase):
                 unprocessed.remove_member.assert_not_called()
                 self.assertIn("Removed (1): owner/removed", result.output)
                 self.assertIn("Already absent (1): owner/absent", result.output)
-                self.assertIn("Failed to verify or remove (1): owner/failed", result.output)
+                status = (
+                    "Outcome unconfirmed" if operation == "remove_member"
+                    else "Failed to verify or remove"
+                )
+                self.assertIn(f"{status} (1): owner/failed", result.output)
                 self.assertIn("Not processed (1): owner/unprocessed", result.output)
                 self.assertNotIn("Finished removing user", result.output)
                 if operation == "get_members":
                     failed.remove_member.assert_not_called()
+
+    def test_applied_delete_with_lost_response_is_unconfirmed_and_not_retried(self):
+        project = self.project("owner/project")
+        error = ConnectionError("DELETE response lost")
+
+        def remove_then_disconnect(user):
+            project.get_members.return_value = self.member_page([], 0)
+            raise error
+
+        project.remove_member.side_effect = remove_then_disconnect
+        self.api.projects.get.return_value = project
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIs(result.exception, error)
+        self.assertEqual(len(project.get_members.return_value), 0)
+        project.remove_member.assert_called_once_with(user="target")
+        project.get_members.assert_called_once_with(limit=100)
+        self.assertIn("Outcome unconfirmed (1): owner/project", result.output)
+        self.assertNotIn("Failed to verify or remove (", result.output)
 
     def test_interruption_does_not_claim_current_project_was_unprocessed(self):
         removed = self.project("owner/removed")
@@ -202,6 +255,18 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         self.assertIn("Not processed (1): owner/unprocessed", result.output)
         unprocessed.get_members.assert_not_called()
         self.assertNotIn("Finished removing user", result.output)
+
+    def test_interrupted_membership_check_is_failed_verification(self):
+        project = self.project("owner/project")
+        project.get_members.side_effect = KeyboardInterrupt()
+        self.api.projects.get.return_value = project
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        project.remove_member.assert_not_called()
+        self.assertIn("Failed to verify or remove (1): owner/project", result.output)
+        self.assertNotIn("Outcome unconfirmed (", result.output)
 
     def test_all_member_pages_are_checked_with_limit_100(self):
         for last_member in ("target", "someone_else"):
@@ -245,7 +310,30 @@ class TestRemoveUserFromProjects(unittest.TestCase):
             project.remove_member.assert_not_called()
         self.assertIn("2 eligible project(s)", result.output)
         self.assertIn("Removed (2): owner/project, second/project", result.output)
-        self.assertIn("no eligible projects matched owner childrens-bti", result.output)
+        self.assertIn(
+            "Protected/skipped (1): childrens-bti/childrens-bti-references",
+            result.output,
+        )
+        self.assertNotIn("no projects matched owner childrens-bti", result.output)
+        projects[-1].get_members.assert_not_called()
+
+    def test_protected_project_is_reported_only_when_its_owner_is_selected(self):
+        reference = self.project("childrens-bti/childrens-bti-references")
+        regular = self.project("owner/project")
+        regular.created_by = "childrens-bti"
+        self.projects_mock.return_value = [reference, regular]
+        for owner, eligible_count in (("childrens-bti", 0), ("owner", 1)):
+            with self.subTest(owner=owner):
+                result = self.runner.invoke(remove_user, [
+                    "--user", "target", "--project_creator", owner,
+                ])
+                self.assertEqual(result.exit_code, 0, result.output)
+                self.assertIn(f"{eligible_count} eligible project(s)", result.output)
+                self.assertEqual("Protected/skipped" in result.output, owner == "childrens-bti")
+                self.assertNotIn("no projects matched", result.output)
+                reference.get_members.assert_not_called()
+                reference.remove_member.assert_not_called()
+                self.assertEqual(regular.remove_member.call_count, eligible_count)
 
     def test_listing_failure_stops_before_any_removals(self):
         project = self.project("owner/project")
