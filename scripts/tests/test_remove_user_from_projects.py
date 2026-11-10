@@ -1,8 +1,9 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from click.testing import CliRunner
+from sevenbridges.meta.collection import Collection
 
 from remove_user_from_projects import remove_user
 
@@ -20,8 +21,15 @@ class TestRemoveUserFromProjects(unittest.TestCase):
 
     def project(self, project_id, members=("target",)):
         project = Mock(id=project_id)
-        project.get_members.return_value = [SimpleNamespace(username=user) for user in members]
+        project.get_members.return_value = self.member_page(members, len(members))
         return project
+
+    def member_page(self, members, total):
+        return Collection(
+            resource=None, href="", total=total,
+            items=[SimpleNamespace(username=user) for user in members],
+            links=[], api=self.api,
+        )
 
     def test_requires_exactly_one_selector_before_api_access(self):
         for options in ([], ["--project", "owner/project", "--project_creator", "owner"]):
@@ -47,6 +55,30 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         result = self.runner.invoke(remove_user, ["--user", "target", "--project", "owner/project"])
         self.assertEqual(result.exit_code, 0, result.output)
         project.remove_member.assert_not_called()
+
+    def test_all_member_pages_are_checked_with_limit_100(self):
+        for last_member in ("target", "someone_else"):
+            with self.subTest(last_member=last_member):
+                project = self.project("owner/project")
+                project.get_members.side_effect = [
+                    self.member_page([f"member{i}" for i in range(100)], 201),
+                    self.member_page([f"member{i}" for i in range(100, 200)], 201),
+                    self.member_page([last_member], 201),
+                ]
+                self.api.projects.get.return_value = project
+                result = self.runner.invoke(remove_user, [
+                    "--user", "target", "--project", "owner/project",
+                ])
+                self.assertEqual(result.exit_code, 0, result.output)
+                self.assertEqual(project.get_members.call_args_list, [
+                    call(limit=100),
+                    call(limit=100, offset=100),
+                    call(limit=100, offset=200),
+                ])
+                if last_member == "target":
+                    project.remove_member.assert_called_once_with(user="target")
+                else:
+                    project.remove_member.assert_not_called()
 
     def test_creator_selection_and_reference_project_exclusion(self):
         projects = [self.project(project_id) for project_id in (

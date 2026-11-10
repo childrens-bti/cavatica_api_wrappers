@@ -43,8 +43,13 @@ def remove_user(profile, user, project, project_creator):
         if project is None and p.id.split("/")[0] not in pcs:
             continue
         try:
-            users = p.get_members()
+            users = p.get_members(limit=hf.LIMIT)
             usernames = {member.username for member in users}
+            offset = hf.LIMIT
+            while offset < users.total:
+                users = p.get_members(limit=hf.LIMIT, offset=offset)
+                usernames.update(member.username for member in users)
+                offset += hf.LIMIT
             if user in usernames:
                 p.remove_member(
                     user=user,
