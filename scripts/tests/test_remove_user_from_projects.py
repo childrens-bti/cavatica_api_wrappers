@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
 
 from click.testing import CliRunner
+from sevenbridges.errors import Forbidden
 from sevenbridges.meta.collection import Collection
 
 from remove_user_from_projects import remove_user
@@ -55,6 +56,54 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         result = self.runner.invoke(remove_user, ["--user", "target", "--project", "owner/project"])
         self.assertEqual(result.exit_code, 0, result.output)
         project.remove_member.assert_not_called()
+
+    def test_explicit_reference_project_is_rejected_before_api_access(self):
+        for project_arg in (
+            "childrens-bti/childrens-bti-references",
+            "https://cavatica.sbgenomics.com/u/childrens-bti/childrens-bti-references/",
+        ):
+            with self.subTest(project_arg=project_arg):
+                result = self.runner.invoke(remove_user, [
+                    "--user", "target", "--project", project_arg,
+                ])
+                self.assertEqual(result.exit_code, 2, result.output)
+                self.assertIn("protected reference project", result.output)
+                self.config_mock.assert_not_called()
+                self.api.projects.get.assert_not_called()
+                self.projects_mock.assert_not_called()
+
+    def test_single_project_permission_denial_returns_failure(self):
+        for operation in ("get_members", "remove_member"):
+            with self.subTest(operation=operation):
+                project = self.project("owner/project")
+                getattr(project, operation).side_effect = Forbidden(message="Denied")
+                self.api.projects.get.return_value = project
+                result = self.runner.invoke(remove_user, [
+                    "--user", "target", "--project", "owner/project",
+                ])
+                self.assertEqual(result.exit_code, 1, result.output)
+                self.assertIn("Could not verify or remove user target", result.output)
+                self.assertIn("owner/project", result.output)
+                self.assertNotIn("Finished removing user", result.output)
+                if operation == "get_members":
+                    project.remove_member.assert_not_called()
+
+    def test_permission_denials_are_reported_after_remaining_projects(self):
+        unreadable = self.project("owner/unreadable")
+        unreadable.get_members.side_effect = Forbidden(message="Denied")
+        unremovable = self.project("owner/unremovable")
+        unremovable.remove_member.side_effect = Forbidden(message="Denied")
+        removable = self.project("owner/removable")
+        self.projects_mock.return_value = [unreadable, unremovable, removable]
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project_creator", "owner",
+        ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        unreadable.remove_member.assert_not_called()
+        unremovable.remove_member.assert_called_once_with(user="target")
+        removable.remove_member.assert_called_once_with(user="target")
+        self.assertIn("in projects: owner/unreadable, owner/unremovable", result.output)
+        self.assertNotIn("Finished removing user", result.output)
 
     def test_all_member_pages_are_checked_with_limit_100(self):
         for last_member in ("target", "someone_else"):
