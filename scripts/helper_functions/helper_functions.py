@@ -227,17 +227,21 @@ def _query_projects_resilient(api, offset, limit):
         )
 
 
-def get_all_projects(api):
+def get_all_projects(api, strict=False):
     """
     Get all projects the user has access to. Projects the platform can't
     serialize are skipped with a warning (see _query_projects_resilient)
-    rather than aborting the whole report.
+    rather than aborting the whole report. With strict=True, listing errors
+    propagate instead, so callers can require a complete list before acting.
     """
     total = api.projects.query(limit=1).total
     projects = []
     offset = 0
     while offset < total:
-        projects.extend(_query_projects_resilient(api, offset, LIMIT))
+        if strict:
+            projects.extend(api.projects.query(limit=LIMIT, offset=offset))
+        else:
+            projects.extend(_query_projects_resilient(api, offset, LIMIT))
         offset += LIMIT
 
     return projects

@@ -43,7 +43,7 @@ def remove_user(profile, user, project, project_creator):
         projs = [api.projects.get(id=project)]
     else:
         pcs = set(project_creator.split(","))
-        projs = hf.get_all_projects(api)
+        projs = hf.get_all_projects(api, strict=True)
 
     failed_projects = []
     for p in tqdm(projs, desc="Removing user from projects", unit="project"):

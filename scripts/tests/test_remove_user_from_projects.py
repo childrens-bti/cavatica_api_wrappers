@@ -3,10 +3,11 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
 
 from click.testing import CliRunner
-from sevenbridges.errors import Forbidden
+from sevenbridges.errors import Forbidden, SbgError
 from sevenbridges.meta.collection import Collection
 
 from remove_user_from_projects import remove_user
+from helper_functions.helper_functions import get_all_projects
 
 
 class TestRemoveUserFromProjects(unittest.TestCase):
@@ -139,11 +140,30 @@ class TestRemoveUserFromProjects(unittest.TestCase):
             "--user", "target", "--project_creator", "owner,second,childrens-bti",
         ])
         self.assertEqual(result.exit_code, 0, result.output)
+        self.projects_mock.assert_called_once_with(self.api, strict=True)
         self.api.projects.get.assert_not_called()
         for project in projects[:2]:
             project.remove_member.assert_called_once_with(user="target")
         for project in projects[2:]:
             project.remove_member.assert_not_called()
+
+    def test_listing_failure_stops_before_any_removals(self):
+        project = self.project("owner/project")
+        error = SbgError(message="Project serialization error")
+        self.api.projects.query.side_effect = [
+            SimpleNamespace(total=101),
+            [project],
+            error,
+        ]
+        with patch("remove_user_from_projects.hf.get_all_projects", wraps=get_all_projects):
+            result = self.runner.invoke(remove_user, [
+                "--user", "target", "--project_creator", "owner",
+            ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIs(result.exception, error)
+        project.get_members.assert_not_called()
+        project.remove_member.assert_not_called()
+        self.assertNotIn("Finished removing user", result.output)
 
 
 if __name__ == "__main__":
