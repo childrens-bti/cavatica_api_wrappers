@@ -4,7 +4,7 @@ from unittest.mock import Mock, call, patch
 
 from click.testing import CliRunner
 from requests.exceptions import ConnectionError
-from sevenbridges.errors import Forbidden, SbgError
+from sevenbridges.errors import Forbidden, NotFound, SbgError
 from sevenbridges.meta.collection import Collection
 
 from remove_user_from_projects import remove_user
@@ -22,13 +22,27 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         self.projects_mock = self.all_projects.start()
         self.addCleanup(self.config.stop)
         self.addCleanup(self.all_projects.stop)
+        self.sleep = patch("remove_user_from_projects.time.sleep")
+        self.sleep_mock = self.sleep.start()
+        self.addCleanup(self.sleep.stop)
+
+        def scoped_projects(api, strict=False, owner=None):
+            return [
+                project for project in self.projects_mock.return_value
+                if owner is None or project.id.split("/")[0].casefold() == owner
+            ]
+
+        self.projects_mock.side_effect = scoped_projects
 
     def project(self, project_id, members=("target",)):
         project = Mock(id=project_id)
         project.get_members.return_value = self.member_page(members, len(members))
 
+        current_members = list(members)
+
         def remove_member(user):
-            remaining = [name for name in members if name != user]
+            current_members[:] = [name for name in current_members if name != user]
+            remaining = current_members
             project.get_members.side_effect = None
             project.get_members.return_value = self.member_page(remaining, len(remaining))
 
@@ -223,7 +237,10 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         ])
         self.assertEqual(result.exit_code, 1, result.output)
         unreadable.remove_member.assert_not_called()
-        self.assertEqual(unremovable.remove_member.call_args_list, [call(user="target")] * 5)
+        unremovable.remove_member.assert_called_once_with(user="target")
+        self.assertEqual(unreadable.get_members.call_count, 1)
+        self.assertEqual(unremovable.get_members.call_count, 2)
+        self.sleep_mock.assert_not_called()
         removable.remove_member.assert_called_once_with(user="target")
         self.assertIn("Confirmed absent (1): owner/removable", result.output)
         self.assertIn("Could not verify (1): owner/unreadable", result.output)
@@ -247,7 +264,7 @@ class TestRemoveUserFromProjects(unittest.TestCase):
                 self.assertEqual(result.exit_code, 1, result.output)
                 removed.remove_member.assert_called_once_with(user="target")
                 absent.remove_member.assert_not_called()
-                self.assertEqual(unprocessed.get_members.call_args_list, [call(limit=100)] * 3)
+                self.assertEqual(unprocessed.get_members.call_args_list, [call(limit=100)] * 2)
                 unprocessed.remove_member.assert_called_once_with(user="target")
                 self.assertIn("Confirmed absent (3): owner/removed, owner/absent, owner/unprocessed", result.output)
                 if operation == "get_members":
@@ -324,7 +341,7 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         project.remove_member.assert_called_once_with(user="target")
         self.assertEqual(project.get_members.call_args_list, [
             call(limit=100), call(limit=100), call(limit=100, offset=100),
-            call(limit=100), call(limit=100),
+            call(limit=100),
         ])
         self.assertIn("Confirmed absent (1): owner/project", result.output)
 
@@ -408,7 +425,7 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         ])
         self.assertEqual(result.exit_code, 0, result.output)
         project.remove_member.assert_called_once_with(user="target")
-        self.assertEqual(project.get_members.call_count, 4)
+        self.assertEqual(project.get_members.call_count, 3)
         self.assertIn("Confirmed absent (1): owner/project", result.output)
         self.assertNotIn("Attempt 3/5", result.output)
 
@@ -421,8 +438,8 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         ])
         self.assertEqual(result.exit_code, 1, result.output)
         self.assertEqual(project.remove_member.call_count, 2)
-        self.assertEqual(project.get_members.call_count, 3)
-        self.assertIn("Could not verify (1): owner/project", result.output)
+        self.assertEqual(project.get_members.call_count, 2)
+        self.assertIn("Outcome unconfirmed (1): owner/project", result.output)
         self.assertNotIn("Attempt 3/5", result.output)
 
     def test_interruption_does_not_claim_current_project_was_unprocessed(self):
@@ -489,7 +506,11 @@ class TestRemoveUserFromProjects(unittest.TestCase):
             "--user", "target", "--project_creator", " owner, second , childrens-bti ",
         ])
         self.assertEqual(result.exit_code, 0, result.output)
-        self.projects_mock.assert_called_once_with(self.api, strict=True)
+        self.assertEqual(self.projects_mock.call_args_list, [
+            call(self.api, strict=True, owner="childrens-bti"),
+            call(self.api, strict=True, owner="owner"),
+            call(self.api, strict=True, owner="second"),
+        ])
         self.api.projects.get.assert_not_called()
         for project in projects[:2]:
             project.remove_member.assert_called_once_with(user="target")
@@ -526,8 +547,8 @@ class TestRemoveUserFromProjects(unittest.TestCase):
         project = self.project("owner/project")
         error = SbgError(message="Project serialization error")
         self.api.projects.query.side_effect = [
-            SimpleNamespace(total=101),
-            [project],
+            Collection(resource=None, href="", total=101,
+                       items=[project] * 100, links=[], api=self.api),
             error,
         ]
         with patch("remove_user_from_projects.hf.get_all_projects", wraps=get_all_projects):
@@ -535,10 +556,102 @@ class TestRemoveUserFromProjects(unittest.TestCase):
                 "--user", "target", "--project_creator", "owner",
             ])
         self.assertEqual(result.exit_code, 1, result.output)
-        self.assertIs(result.exception, error)
+        self.assertIn("Could not load selected projects", result.output)
+        self.assertIn("Project serialization error", result.output)
         project.get_members.assert_not_called()
         project.remove_member.assert_not_called()
         self.assertNotIn("Finished removing user", result.output)
+
+    def test_explicit_lookup_failures_are_cli_errors(self):
+        for error_type in (NotFound, Forbidden):
+            with self.subTest(error_type=error_type):
+                self.api.projects.get.side_effect = error_type(message="Unavailable")
+                result = self.runner.invoke(remove_user, [
+                    "--user", "target", "--project", "owner/missing",
+                ])
+                self.assertEqual(result.exit_code, 1, result.output)
+                self.assertIn("Error: Could not load selected projects", result.output)
+                self.assertIn("Unavailable", result.output)
+                self.assertNotIn("Finished removing user", result.output)
+
+    def test_owner_names_are_normalized_and_deduplicated(self):
+        project = self.project("childrens-bti/project")
+        self.projects_mock.return_value = [project]
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project_creator", " Childrens-BTI,childrens-bti ",
+        ])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.projects_mock.assert_called_once_with(self.api, strict=True, owner="childrens-bti")
+        project.remove_member.assert_called_once_with(user="target")
+
+    def test_owner_listing_never_queries_unselected_broken_projects(self):
+        project = self.project("owner/project")
+
+        def query(owner=None, limit=None, offset=None):
+            if owner != "owner":
+                raise SbgError(message="Unselected project cannot be serialized")
+            return Collection(resource=None, href="", total=1,
+                              items=[project], links=[], api=self.api)
+
+        self.api.projects.query.side_effect = query
+        with patch("remove_user_from_projects.hf.get_all_projects", wraps=get_all_projects):
+            result = self.runner.invoke(remove_user, [
+                "--user", "target", "--project_creator", "owner",
+            ])
+        self.assertEqual(result.exit_code, 0, result.output)
+        project.remove_member.assert_called_once_with(user="target")
+        self.assertTrue(all(c.kwargs["owner"] == "owner" for c in self.api.projects.query.call_args_list))
+
+    def test_all_case_variants_are_removed_in_one_attempt(self):
+        project = self.project("owner/project", members=("Target", "target", "TARGET", "other"))
+        self.api.projects.get.return_value = project
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(project.remove_member.call_args_list, [
+            call(user="Target"), call(user="target"), call(user="TARGET"),
+        ])
+        self.sleep_mock.assert_not_called()
+
+    def test_retries_back_off_and_reuse_verified_membership(self):
+        project = self.project("owner/project")
+        project.remove_member.side_effect = None
+        self.api.projects.get.return_value = project
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertEqual(self.sleep_mock.call_args_list, [call(5), call(10), call(20), call(40)])
+        self.assertEqual(project.remove_member.call_count, 5)
+        self.assertEqual(project.get_members.call_count, 6)
+
+    def test_interruption_during_backoff_stops_before_retry(self):
+        project = self.project("owner/project")
+        project.remove_member.side_effect = None
+        self.api.projects.get.return_value = project
+        self.sleep_mock.side_effect = KeyboardInterrupt()
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        project.remove_member.assert_called_once_with(user="target")
+        self.assertEqual(project.get_members.call_count, 2)
+        self.assertIn("Still has access (1): owner/project", result.output)
+
+    def test_membership_page_changes_are_not_confirmed_absent(self):
+        project = self.project("owner/project")
+        first = self.member_page([f"user{i}" for i in range(100)], 101)
+        second = self.member_page([], 100)
+        project.get_members.side_effect = [first, second] * 10
+        self.api.projects.get.return_value = project
+        result = self.runner.invoke(remove_user, [
+            "--user", "target", "--project", "owner/project",
+        ])
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn("Could not verify (1): owner/project", result.output)
+        self.assertNotIn("Confirmed absent", result.output)
+        project.remove_member.assert_not_called()
 
 
 if __name__ == "__main__":

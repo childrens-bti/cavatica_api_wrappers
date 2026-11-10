@@ -320,7 +320,11 @@ python scripts/generate_projects_report.py -h
 
 Use `scripts/remove_user_from_projects.py` to remove a user's membership from
 one project or from projects owned by selected accounts. It checks the results,
-tries unresolved projects up to five times total, and prints a summary.
+tries unresolved projects up to five times total, and prints a summary. Retries
+wait 5, 10, 20, and 40 seconds; permission denials are reported without retries.
+Owner selection is case-insensitive and queries only the selected accounts.
+Each owner's projects are listed once before removals begin. Listing errors or
+detected pagination inconsistencies stop the run before any users are removed.
 
 Run these commands from the repository root after configuring your Seven
 Bridges credentials. Replace `username` with the user to remove.
