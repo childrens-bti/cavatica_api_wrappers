@@ -316,6 +316,42 @@ that profile. To view all available options:
 python scripts/generate_projects_report.py -h
 ```
 
+## Removing a User from Projects
+
+Use `scripts/remove_user_from_projects.py` to remove a user's membership from
+one project or from projects owned by selected accounts. It checks the results,
+tries unresolved projects up to five times total, and prints a summary. Retries
+wait 5, 10, 20, and 40 seconds; permission denials are reported without retries.
+Owner selection is case-insensitive and queries only the selected accounts.
+Each owner's projects are listed once before removals begin. Listing errors or
+detected pagination inconsistencies stop the run before any users are removed.
+
+Run these commands from the repository root after configuring your Seven
+Bridges credentials. Replace `username` with the user to remove.
+
+Remove the user from one project (a project URL also works):
+
+```bash
+python scripts/remove_user_from_projects.py --user username --project owner/project
+```
+
+Remove the user from all projects you can access under the listed owners:
+
+```bash
+python scripts/remove_user_from_projects.py --user username --project_creator owner1,owner2
+```
+
+Use either `--project` or `--project_creator`. The credentials profile defaults
+to `cavatica`; add `--profile profile_name` to use another profile. The script
+does not allow removing yourself or removing users from
+`childrens-bti/childrens-bti-references`.
+
+For help:
+
+```bash
+python scripts/remove_user_from_projects.py -h
+```
+
 ## Other Scripts Usages
 
 Most scripts in this repo are simple and provide usage and inputs by running them with the -h option.

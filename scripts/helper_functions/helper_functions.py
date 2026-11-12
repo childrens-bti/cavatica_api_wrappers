@@ -203,7 +203,7 @@ def query_tasks(api, **kwargs):
     return tasks
 
 
-def _query_projects_resilient(api, offset, limit):
+def _query_projects_resilient(api, offset, limit, owner=None):
     """
     Fetch one page of api.projects.query(), skipping any individual project
     the platform can't serialize instead of failing the whole page. Some
@@ -212,7 +212,8 @@ def _query_projects_resilient(api, offset, limit):
     and skip just the broken record(s).
     """
     try:
-        return list(api.projects.query(limit=limit, offset=offset))
+        query = {} if owner is None else {"owner": owner}
+        return list(api.projects.query(limit=limit, offset=offset, **query))
     except SbgError as e:
         if limit == 1:
             print(
@@ -222,22 +223,38 @@ def _query_projects_resilient(api, offset, limit):
             )
             return []
         mid = limit // 2
-        return _query_projects_resilient(api, offset, mid) + _query_projects_resilient(
-            api, offset + mid, limit - mid
+        return _query_projects_resilient(api, offset, mid, owner) + _query_projects_resilient(
+            api, offset + mid, limit - mid, owner
         )
 
 
-def get_all_projects(api):
+def get_all_projects(api, strict=False, owner=None):
     """
     Get all projects the user has access to. Projects the platform can't
     serialize are skipped with a warning (see _query_projects_resilient)
-    rather than aborting the whole report.
+    rather than aborting the whole report. An owner restricts the query to that
+    account. Strict mode lists once, propagates listing errors, and rejects
+    changing page totals, missing entries, or duplicate IDs.
     """
-    total = api.projects.query(limit=1).total
+    query = {} if owner is None else {"owner": owner}
+    if strict:
+        page = api.projects.query(limit=LIMIT, offset=0, **query)
+        total = page.total
+        projects = list(page)
+        for offset in range(LIMIT, total, LIMIT):
+            page = api.projects.query(limit=LIMIT, offset=offset, **query)
+            if page.total != total:
+                raise SbgError(message="Project listing changed during pagination")
+            projects.extend(page)
+        if len(projects) != total or len({p.id for p in projects}) != total:
+            raise SbgError(message="Project listing was incomplete or contained duplicate IDs")
+        return projects
+
+    total = api.projects.query(limit=1, **query).total
     projects = []
     offset = 0
     while offset < total:
-        projects.extend(_query_projects_resilient(api, offset, LIMIT))
+        projects.extend(_query_projects_resilient(api, offset, LIMIT, owner))
         offset += LIMIT
 
     return projects
