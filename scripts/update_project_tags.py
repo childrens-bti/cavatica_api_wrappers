@@ -28,6 +28,9 @@ def update_project_tags(profile, tag_file, verbose):
     with open(tag_file, newline="") as f:
         for row in csv.DictReader(f, delimiter="\t"):
             tags = [tag.strip() for tag in row["tag"].split(",") if tag.strip()]
+            if not tags:
+                print(f"Warning: no tags for project {row['project']}; skipping")
+                continue
             project_id = hf.parse_project(row["project"].strip())
             project = api.projects.get(project_id)
             project.tags = list(project.tags or []) + tags
