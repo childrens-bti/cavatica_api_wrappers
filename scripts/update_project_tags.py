@@ -24,7 +24,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 def update_project_tags(profile, tag_file, verbose):
     """Add the tags in each file row to its project."""
     api = hf.parse_config(profile)
-    project_count = 0
+    updated_projects = set()
     with open(tag_file, newline="") as f:
         for row in csv.DictReader(f, delimiter="\t"):
             tags = [tag.strip() for tag in row["tag"].split(",") if tag.strip()]
@@ -33,13 +33,17 @@ def update_project_tags(profile, tag_file, verbose):
                 continue
             project_id = hf.parse_project(row["project"].strip())
             project = api.projects.get(project_id)
-            project.tags = list(project.tags or []) + tags
+            existing = list(project.tags or [])
+            new_tags = [tag for tag in dict.fromkeys(tags) if tag not in existing]
+            if not new_tags:
+                continue
+            project.tags = existing + new_tags
             project.save()
-            project_count += 1
+            updated_projects.add(project_id)
             if verbose:
-                print(f"Added tags to {project.id}: {', '.join(tags)}")
+                print(f"Added tags to {project.id}: {', '.join(new_tags)}")
 
-    print(f"Added tags to {project_count} projects")
+    print(f"Added tags to {len(updated_projects)} projects")
 
 
 if __name__ == "__main__":
