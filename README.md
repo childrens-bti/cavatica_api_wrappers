@@ -298,6 +298,32 @@ Options:
   -h, --help              Show this message and exit.
 ```
 
+## Adding Tags to Projects
+
+Use `scripts/update_project_tags.py` to add tags to Cavatica projects from a
+TSV file with `project` and `tag` columns. The `project` column accepts project
+IDs or URLs. Separate multiple tags with commas in the `tag` column.
+Tags can have internal spaces, such as `RNA sequencing`; leading and trailing
+spaces are trimmed. Existing project tags are preserved.
+
+Example `project_tags.tsv` (columns are separated by tabs):
+
+```tsv
+project	tag
+username/project-one	cancer,RNA sequencing
+https://cavatica.sbgenomics.com/u/username/project-two/	whole genome sequencing,harmonized
+```
+
+Run from the repository root:
+
+```bash
+python scripts/update_project_tags.py --tag_file project_tags.tsv
+```
+
+The credentials profile defaults to `cavatica`; use `--profile profile_name`
+to select another profile. The script prints `Added tags to X projects` when
+finished. Add `--verbose` to print the tags added to each project.
+
 ## Generating a Projects Report
 
 Use `generate_projects_report.py` to list the projects created by the selected
