@@ -12,24 +12,29 @@ REGULAR_USERS = ["chaodi", "corbettr", "raqureshi"]
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
-def parse_users(value):
-    """Parse selected users from GitHub issue-form checkbox or text input output."""
-    if "No response" in value:
+def parse_selections(value):
+    """Parse checked labels or comma-separated values from an issue form."""
+    if not value.strip() or value.strip() == "_No response_":
         return []
 
     checkbox_matches = re.findall(
-        r"^- \[(?P<checked>[ xX])\]\s*(?P<username>.+?)\s*$",
+        r"^- \[(?P<checked>[ xX])\][ \t]*(?P<label>[^\r\n]+)",
         value,
         flags=re.MULTILINE,
     )
     if checkbox_matches:
         return [
-            username.strip()
-            for checked, username in checkbox_matches
+            label.strip()
+            for checked, label in checkbox_matches
             if checked.lower() == "x"
         ]
 
-    return [user.strip() for user in value.split(",") if user.strip()]
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def parse_users(value):
+    """Parse additional users selected in the issue form."""
+    return parse_selections(value)
 
 
 @click.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
@@ -50,20 +55,21 @@ def create_project(token, run):
     body = os.environ["BODY"]
     description = os.environ["URL"]
 
-    fields = re.split(r"### ", body)
+    fields = re.split(r"^### ", body, flags=re.MULTILINE)
 
     # default to AWS-BTI-Core
     billing_id = "9fbf675f-6525-4dff-bf55-778a4528c936"
     project = None
     user_list = []
+    tags = []
 
     # the split makes a blank first field so skip it
     fields = fields[1:]
 
     # read the fields and create project inputs
     for field in fields:
-        pair = re.split(r"\n\n", field)
-        key = pair[0]
+        pair = re.split(r"\r?\n\r?\n", field, maxsplit=1)
+        key = pair[0].strip()
         value = pair[1].strip()
         if key == "Billing":
             for billing_group in billing_groups:
@@ -73,10 +79,13 @@ def create_project(token, run):
             project = value
         elif key == "Users":
             user_list = parse_users(value)
+        elif key in {"PI", "Project", "Experimental_Strategy", "dev"}:
+            tags.extend(parse_selections(value))
         else:
             raise ValueError(f"Unknown field: {key}")
 
     user_list = list(dict.fromkeys(user_list + REGULAR_USERS))
+    tags = list(dict.fromkeys(tags))
 
     # create project
     if run:
@@ -85,6 +94,7 @@ def create_project(token, run):
             name=project,
             billing_group=billing_id,
             description=description,
+            tags=tags,
             settings={"use_memoization": True, "allow_network_access": True},
         )
         print("Adding admin users")
@@ -118,6 +128,7 @@ def create_project(token, run):
         print(f"name={project}")
         print(f"billing_group={billing_id}")
         print(f"description={description}")
+        print(f"tags={tags}")
 
 
 if __name__ == "__main__":

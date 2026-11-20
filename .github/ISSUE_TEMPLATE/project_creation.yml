@@ -38,3 +38,124 @@ body:
           required: false
         - label: schen8
           required: false
+  - type: checkboxes
+    id: pi
+    attributes:
+      label: PI
+      description: Principal investigators associated with this project. Selected values
+        will be added as project tags.
+      options:
+        - label: Bollard
+          required: false
+        - label: Cruz
+          required: false
+        - label: Fabbri
+          required: false
+        - label: Fonseca
+          required: false
+        - label: Gilbert
+          required: false
+        - label: Haydar
+          required: false
+        - label: Rokita
+          required: false
+        - label: Rood
+          required: false
+  - type: checkboxes
+    id: project
+    attributes:
+      label: Project
+      description: Projects associated with this Cavatica project. Selected values will
+        be added as project tags.
+      options:
+        - label: atrt-subtyping
+          required: false
+        - label: CNH DMG
+          required: false
+        - label: Dark Antigens
+          required: false
+        - label: DepMap
+          required: false
+        - label: DNMTi CART
+          required: false
+        - label: fabbri-ev
+          required: false
+        - label: fonseca-spatial
+          required: false
+        - label: HGG CART TME
+          required: false
+        - label: HIV CART
+          required: false
+        - label: IMPACT
+          required: false
+        - label: Liquid Biopsy MB and EPN
+          required: false
+        - label: MB minigene Immunopeptidomics
+          required: false
+        - label: MCI
+          required: false
+        - label: miRNA TME
+          required: false
+        - label: MTAP
+          required: false
+        - label: Neoantigen Discovery
+          required: false
+        - label: NF1 Astrocytes
+          required: false
+        - label: NF1 Glioma
+          required: false
+        - label: NF1 Organoids
+          required: false
+        - label: PBTA
+          required: false
+        - label: PBTA Splicing
+          required: false
+        - label: PTBP2
+          required: false
+        - label: RBT
+          required: false
+        - label: SUPERNOVA
+          required: false
+  - type: checkboxes
+    id: experimental_strategy
+    attributes:
+      label: Experimental_Strategy
+      description: Experimental strategies used in this project. Selected values will
+        be added as project tags.
+      options:
+        - label: 10x Flex GEX
+          required: false
+        - label: Flash-Seq
+          required: false
+        - label: Immunopeptidomics
+          required: false
+        - label: long-read RNA-Seq
+          required: false
+        - label: Methylation
+          required: false
+        - label: miRNA-Seq
+          required: false
+        - label: Ribo-Seq
+          required: false
+        - label: RNA-Seq
+          required: false
+        - label: scRNA-Seq
+          required: false
+        - label: Spatial Transcriptomics
+          required: false
+        - label: Targeted Sequencing
+          required: false
+        - label: WGS
+          required: false
+        - label: Whole Cell Proteomics
+          required: false
+        - label: WXS
+          required: false
+  - type: checkboxes
+    id: dev
+    attributes:
+      label: dev
+      description: Select for a development project. Adds the dev project tag.
+      options:
+        - label: dev
+          required: false

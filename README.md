@@ -298,6 +298,27 @@ Options:
   -h, --help              Show this message and exit.
 ```
 
+## Creating Projects with Tags
+
+Use the **Cavatica Project Creation** issue form to request a new project.
+Select any applicable **PI**, **Project**, and **Experimental_Strategy**
+checkboxes, or select the standalone **dev** checkbox for a development project.
+The selected labels become Cavatica project tags, preserving their
+spelling and spaces. These fields are optional; unchecked options are ignored
+and duplicate tags are included once. Existing issues without these fields
+continue to create projects without tags.
+
+The project-creation workflow passes the issue body to `scripts/create_project.py`,
+which includes the tags when creating the project. To preview the inputs locally,
+set `BODY` to the issue body and `URL` to the issue URL, then run:
+
+```bash
+python scripts/create_project.py --token "$CAVATICA_TOKEN"
+```
+
+The dry run prints the selected tags alongside the other project inputs. Add
+`--run` to create the project and add its members.
+
 ## Adding Tags to Projects
 
 Use `scripts/update_project_tags.py` to add tags to Cavatica projects from a
