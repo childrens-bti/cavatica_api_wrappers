@@ -32,7 +32,7 @@ def get_regular_files(api, all_tasks, debug=False):
             try:
                 file_obj = api.files.get(id=file.id)
             except NotFound:
-                print(f"Can't find {file}, file doesn't exist", file=sys.stderr)
+                print(f"Can't find {file} for {task.id}, file doesn't exist", file=sys.stderr)
                 continue
 
             if file_obj.is_folder():
