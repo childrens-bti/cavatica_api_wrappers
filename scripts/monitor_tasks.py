@@ -9,6 +9,7 @@ from sevenbridges import Api
 from helper_functions import helper_functions as hf
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+EST = timezone(timedelta(hours=-5), name="EST")
 
 
 def notify(title, text):
@@ -41,8 +42,10 @@ def report_tasks(profile):
     projects = []
 
     now = datetime.now(timezone.utc)
+    now_est = now.astimezone(EST)
 
-    if 9 <= datetime.now().hour < 18:
+    # Select the lookback window in EST; compare task times in UTC.
+    if 9 <= now_est.hour < 18:
         ended_from = now - timedelta(hours=1)
     else:
         ended_from = now - timedelta(hours=24)
