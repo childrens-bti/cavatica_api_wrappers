@@ -1,6 +1,8 @@
 import click
 from sevenbridges.errors import SbgError
 from helper_functions import helper_functions as hf
+from helper_functions.manifest_io import load_input
+from io import StringIO
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
@@ -23,7 +25,7 @@ def parse_manifest(manifest_path):
     Parse manifest file combining s3 path and file name columns.
 
     Inputs:
-        manifest_path: str, path to the manifest file (CSV or TSV)
+        manifest_path: str, local path or raw GitHub URL to a CSV/TSV manifest
     Returns:
         List of S3 key paths/objects
     """
@@ -31,12 +33,19 @@ def parse_manifest(manifest_path):
     import pandas as pd
 
     # Determine the file type based on the extension
-    if manifest_path.endswith(".csv"):
-        df = pd.read_csv(manifest_path)
-    elif manifest_path.endswith(".tsv"):
-        df = pd.read_csv(manifest_path, sep="\t")
+    parsed = urlparse(manifest_path)
+    path = parsed.path
+    if path.endswith(".csv"):
+        delimiter = ","
+    elif path.endswith(".tsv"):
+        delimiter = "\t"
     else:
         raise ValueError("Manifest file must be either CSV or TSV format.")
+    if parsed.scheme or parsed.netloc:
+        source = StringIO(load_input(manifest_path))
+    else:
+        source = manifest_path
+    df = pd.read_csv(source, sep=delimiter)
 
     # Check for required columns
     required_columns = ["file_name", "aws_s3_path"]
@@ -130,7 +139,7 @@ def build_import_item(volume, s3_key_object, project):
 )
 @click.option(
     "--manifest",
-    help="Path to a manifest file (CSV or TSV) containing S3 keys and metadata. If provided, the script will read S3 keys from the manifest instead of a separate text file.",
+    help="Local CSV/TSV manifest path or HTTPS raw.githubusercontent.com main-branch URL containing S3 keys and metadata. Optional alternative to --s3-keys-file.",
 )
 @click.option(
     "--run",

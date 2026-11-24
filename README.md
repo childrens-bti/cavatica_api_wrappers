@@ -515,7 +515,7 @@ Example AWS CLI command:
 aws s3api list-objects-v2 --bucket <S3_BUCKET_NAME> --prefix <PREFIX_PATH>/ --profile <AWS_PROFILE> --query 'Contents[].Key' --output text | tr '\t' '\n' | grep -E 'file_pattern' > <OUTPUT_KEYS_FILE>.txt
 ```
 
-Use `--s3-keys-file` for the text-file workflow or `--manifest` for a CSV/TSV manifest. For example:
+Use `--s3-keys-file` for the text-file workflow or `--manifest` for a CSV/TSV manifest. The manifest option is optional when an S3 keys file is supplied. It accepts local paths and HTTPS `raw.githubusercontent.com` URLs from the `main` branch. For private GitHub repositories, set `GITHUB_TOKEN` or `GH_TOKEN`; public repositories do not require a token. For example:
 
 ```bash
 python scripts/bulk_import.py \
@@ -525,6 +525,8 @@ python scripts/bulk_import.py \
   --profile cavatica \
   --run
 ```
+
+To read the manifest from GitHub, replace the local path with a raw URL, such as `--manifest https://raw.githubusercontent.com/owner/repo/main/import_manifest.tsv`.
 
 ```bash
 python scripts/bulk_import.py
@@ -541,8 +543,8 @@ Options:
       [required]
   --s3-keys-file PATH
       Text file containing S3 object keys (file paths)
-  --manifest PATH
-      CSV or TSV manifest containing `aws_s3_path` and `file_name` columns
+  --manifest TEXT
+      Local CSV/TSV path or raw GitHub URL containing `aws_s3_path` and `file_name` columns
   --profile TEXT
       Profile to use from credentials file
       [default: cavatica]
